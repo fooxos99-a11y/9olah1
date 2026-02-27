@@ -4,14 +4,12 @@ import { useEffect, useState } from "react"
 import { useRouter } from 'next/navigation'
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { UserPlus, UserMinus } from 'lucide-react'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { UserPlus, Trash2, ArrowRight, Shield, Info } from 'lucide-react'
 import { createClient } from "@/lib/supabase/client"
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog"
 
@@ -28,6 +26,8 @@ export default function AdminsManagement() {
   const [admins, setAdmins] = useState<Admin[]>([])
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedAdmin, setSelectedAdmin] = useState<Admin | null>(null)
+  const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
   const confirmDialog = useConfirmDialog()
@@ -177,83 +177,88 @@ export default function AdminsManagement() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-2xl text-[#1a2332]">جاري التحميل...</div>
+      <div className="min-h-screen flex items-center justify-center bg-[#fafaf9]">
+        <div className="w-10 h-10 rounded-full border-2 border-[#D4AF37] border-t-transparent animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#f5f1e8] to-white">
+    <div className="min-h-screen flex flex-col bg-[#fafaf9]" dir="rtl">
       <Header />
 
-      <main className="flex-1 py-6 md:py-12 px-3 md:px-4">
-        <div className="container mx-auto max-w-6xl">
-          <div className="mb-4 md:mb-8">
-            <h1 className="text-2xl md:text-4xl font-bold text-[#1a2332] mb-1 md:mb-2">إدارة الإداريين</h1>
-            <p className="text-sm md:text-lg text-[#1a2332]/70">إضافة وإزالة الإداريين في النظام</p>
-          </div>
+      <main className="flex-1 py-10 px-4">
+        <div className="container mx-auto max-w-4xl space-y-8">
 
-          <div className="mb-4 md:mb-6">
+          {/* Page Header */}
+          <div className="flex items-center justify-between border-b border-[#D4AF37]/40 pb-6">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.back()}
+                className="w-9 h-9 rounded-lg border border-[#D4AF37]/40 flex items-center justify-center text-[#C9A961] hover:bg-[#D4AF37]/10 transition-colors"
+              >
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <div className="w-10 h-10 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/40 flex items-center justify-center">
+                <Shield className="w-5 h-5 text-[#D4AF37]" />
+              </div>
+              <h1 className="text-2xl font-bold text-[#1a2332]">إدارة الإداريين</h1>
+            </div>
+
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-gradient-to-r from-[#D4AF37] to-[#C9A961] hover:from-[#C9A961] hover:to-[#BFA050] text-[#023232] font-bold text-sm md:text-base w-full md:w-auto">
-                  <UserPlus className="w-4 md:w-5 h-4 md:h-5 ml-1 md:ml-2" />
-                  إضافة إداري جديد
-                </Button>
+                <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#D4AF37]/50 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#C9A961] hover:text-[#D4AF37] text-sm font-semibold transition-colors">
+                  <UserPlus className="w-4 h-4" />
+                  إضافة إداري
+                </button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px] max-w-[95vw]">
+              <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
-                  <DialogTitle className="text-xl md:text-2xl text-[#1a2332]">إضافة إداري جديد</DialogTitle>
+                  <DialogTitle className="text-xl text-[#1a2332]">إضافة إداري جديد</DialogTitle>
+                  <DialogDescription className="text-sm text-neutral-500">أدخل بيانات الإداري الجديد</DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-3 md:gap-4 py-3 md:py-4">
-                  <div className="space-y-1 md:space-y-2">
-                    <Label className="text-sm md:text-base">الاسم الكامل *</Label>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-[#1a2332]">الاسم الكامل *</Label>
                     <Input
                       value={newAdmin.name}
                       onChange={(e) => setNewAdmin({ ...newAdmin, name: e.target.value })}
                       placeholder="أدخل اسم الإداري"
-                      className="text-sm md:text-base"
                     />
                   </div>
-                  <div className="space-y-1 md:space-y-2">
-                    <Label className="text-sm md:text-base">رقم الحساب *</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-[#1a2332]">رقم الحساب *</Label>
                     <Input
                       type="number"
                       value={newAdmin.account_number}
                       onChange={(e) => setNewAdmin({ ...newAdmin, account_number: e.target.value })}
                       placeholder="أدخل رقم الحساب"
-                      className="text-sm md:text-base"
                     />
                   </div>
-                  <div className="space-y-1 md:space-y-2">
-                    <Label className="text-sm md:text-base">رقم الهوية</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-[#1a2332]">رقم الهوية</Label>
                     <Input
                       value={newAdmin.id_number}
                       onChange={(e) => setNewAdmin({ ...newAdmin, id_number: e.target.value })}
-                      placeholder="أدخل رقم الهوية (اختياري)"
-                      className="text-sm md:text-base"
+                      placeholder="اختياري"
                     />
                   </div>
-                  <div className="space-y-1 md:space-y-2">
-                    <Label className="text-sm md:text-base">رقم الجوال</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-[#1a2332]">رقم الجوال</Label>
                     <Input
                       value={newAdmin.phone_number}
                       onChange={(e) => setNewAdmin({ ...newAdmin, phone_number: e.target.value })}
-                      placeholder="أدخل رقم الجوال (اختياري)"
+                      placeholder="اختياري"
                       dir="ltr"
-                      className="text-sm md:text-base"
                     />
                   </div>
                 </div>
-                <div className="flex justify-end gap-2 md:gap-3">
-                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} className="text-sm md:text-base">
-                    إلغاء
-                  </Button>
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} className="border-[#D4AF37]/50 text-neutral-600">إلغاء</Button>
                   <Button
                     onClick={handleAddAdmin}
                     disabled={isSubmitting}
-                    className="bg-gradient-to-r from-[#D4AF37] to-[#C9A961] hover:from-[#C9A961] hover:to-[#BFA050] text-[#023232] font-bold text-sm md:text-base"
+                    className="border border-[#D4AF37]/50 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#C9A961] hover:text-[#D4AF37]"
                   >
                     {isSubmitting ? "جاري الحفظ..." : "حفظ"}
                   </Button>
@@ -262,57 +267,83 @@ export default function AdminsManagement() {
             </Dialog>
           </div>
 
-          <Card className="border border-[#D4AF37]/30 shadow-md">
-            <CardHeader className="bg-gradient-to-r from-[#D4AF37]/10 to-[#C9A961]/10 p-3 md:p-6">
-              <CardTitle className="text-xl md:text-2xl text-[#1a2332]">قائمة الإداريين</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-3 md:pt-6 p-3 md:p-6">
-              {admins.length === 0 ? (
-                <div className="text-center py-6 md:py-8 text-[#1a2332]/60 text-sm md:text-base">لا يوجد إداريين مسجلين</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-right text-xs md:text-sm">رقم الحساب</TableHead>
-                        <TableHead className="text-right text-xs md:text-sm">الاسم</TableHead>
-                        <TableHead className="text-right text-xs md:text-sm hidden md:table-cell">رقم الهوية</TableHead>
-                        <TableHead className="text-right text-xs md:text-sm hidden md:table-cell">رقم الجوال</TableHead>
-                        <TableHead className="text-right text-xs md:text-sm">الإجراءات</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {admins.map((admin) => (
-                        <TableRow key={admin.id}>
-                          <TableCell className="font-bold text-xs md:text-base">{admin.account_number}</TableCell>
-                          <TableCell className="text-xs md:text-base">{admin.name}</TableCell>
-                          <TableCell className="text-xs md:text-base hidden md:table-cell">{admin.id_number || "-"}</TableCell>
-                          <TableCell dir="ltr" className="text-right text-xs md:text-base hidden md:table-cell">
-                            {admin.phone_number || "-"}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDeleteAdmin(admin.id, admin.name)}
-                              className="text-xs md:text-sm"
-                            >
-                              <UserMinus className="w-3 md:w-4 h-3 md:h-4 ml-1" />
-                              حذف
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+          {/* Admins List */}
+          {admins.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-[#D4AF37]/40 shadow-sm p-16 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center mx-auto mb-4">
+                <Shield className="w-7 h-7 text-[#D4AF37]" />
+              </div>
+              <p className="text-lg font-semibold text-neutral-500">لا يوجد إداريين مسجلين</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-[#D4AF37]/40 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-[#D4AF37]/40 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center">
+                  <Shield className="w-4 h-4 text-[#D4AF37]" />
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <h2 className="text-base font-bold text-[#1a2332]">قائمة الإداريين</h2>
+                <span className="mr-auto text-sm text-neutral-400">{admins.length} إداري</span>
+              </div>
+              <div className="divide-y divide-[#D4AF37]/20">
+                {admins.map((admin) => (
+                  <div key={admin.id} className="flex items-center justify-between px-6 py-4 hover:bg-[#D4AF37]/3 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center shrink-0">
+                        <Shield className="w-4 h-4 text-[#D4AF37]" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-[#1a2332]">{admin.name}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setSelectedAdmin(admin); setIsInfoDialogOpen(true) }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#D4AF37]/50 text-[#C9A961] hover:bg-[#D4AF37]/10 hover:text-[#D4AF37] text-sm font-medium transition-colors"
+                      >
+                        <Info className="w-3.5 h-3.5" />
+                        عرض
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAdmin(admin.id, admin.name)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 text-sm font-medium transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        حذف
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
       <Footer />
+
+      <Dialog open={isInfoDialogOpen} onOpenChange={setIsInfoDialogOpen}>
+        <DialogContent className="sm:max-w-[420px]" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-[#1a2332]">بيانات الحساب</DialogTitle>
+            <DialogDescription className="text-sm text-neutral-500">معلومات الإداري</DialogDescription>
+          </DialogHeader>
+          {selectedAdmin && (
+            <div className="space-y-3 py-2">
+              {[
+                { label: "الاسم", value: selectedAdmin.name },
+                { label: "رقم الحساب", value: String(selectedAdmin.account_number) },
+                { label: "رقم الهوية", value: selectedAdmin.id_number || "—" },
+                { label: "رقم الجوال", value: selectedAdmin.phone_number || "—" },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex justify-between items-center px-4 py-3 bg-[#fafaf9] rounded-xl border border-[#D4AF37]/20">
+                  <span className="text-sm font-semibold text-neutral-500">{label}</span>
+                  <span className="text-sm font-bold text-[#1a2332]" dir="ltr">{value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
