@@ -1002,7 +1002,6 @@ export default function AdminDashboard() {
                         { icon: BookOpen, label: "قاعدة أسئلة الفئات", path: "/admin/questions" },
                         { icon: BookOpen, label: "إدارة خلية الحروف", path: "/admin/letter-hive-questions" },
                         { icon: BookOpen, label: "قاعدة أسئلة المزاد", path: "/admin/auction-questions" },
-                        { icon: Zap, label: "إدارة التحدي اليومي", path: "/admin/daily-challenges" },
                         { icon: Upload, label: "قاعدة صور خمن الصورة", path: "/admin/guess-images" },
                       ].map(({ icon: Ic, label, path }) => (
                         <button key={label} onClick={() => { setIsGamesManagementDialogOpen(false); router.push(path) }} className="w-full flex items-center justify-between px-5 py-5 bg-white hover:bg-[#D4AF37]/5 transition-colors duration-200 group">
