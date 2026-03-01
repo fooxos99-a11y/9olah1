@@ -1,12 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
+export const dynamic = 'force-dynamic'
+
 const getSupabase = () =>
   createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
+// GET: جلب المظاهر من Supabase
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabase()
@@ -15,91 +18,62 @@ export async function GET(request: NextRequest) {
 
     if (studentId) {
       const { data, error } = await supabase
-        .from("student_preferences")
-        .select("active_font")
-        .eq("student_id", studentId)
+        .from("students")
+        .select("preferred_theme")
+        .eq("id", studentId)
         .single()
 
       if (error || !data) {
-        return NextResponse.json({ fonts: {} })
+        return NextResponse.json({ theme: null })
       }
-      const fonts: Record<string, string> = {}
-      if (data.active_font) fonts[studentId] = data.active_font
-      return NextResponse.json({ fonts })
+      return NextResponse.json({ theme: data.preferred_theme || null })
     }
 
-    // جلب كل الخطوط
+    // جلب كل المظاهر
     const { data, error } = await supabase
-      .from("student_preferences")
-      .select("student_id, active_font")
+      .from("students")
+      .select("id, preferred_theme")
 
     if (error || !data) {
-      return NextResponse.json({ fonts: {} })
+      return NextResponse.json({ themes: {} })
     }
 
-    const fonts: Record<string, string> = {}
+    const themes: Record<string, string> = {}
     for (const row of data) {
-      if (row.active_font) fonts[row.student_id] = row.active_font
+      if (row.preferred_theme) themes[row.id] = row.preferred_theme
     }
 
-    return NextResponse.json({ fonts })
-  } catch (error) {
-    console.error("[fonts] Error fetching fonts:", error)
-    return NextResponse.json({ fonts: {} })
+    return NextResponse.json({ themes })
+  } catch (error: any) {
+    console.error("[themes] Error fetching themes:", error)
+    const studentId = new URL(request.url).searchParams.get("studentId")
+    return NextResponse.json(studentId ? { theme: null } : { themes: {} })
   }
 }
 
+// POST: حفظ مظهر طالب في Supabase
 export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabase()
-    const { student_id, font_id } = await request.json()
+    const { studentId, theme } = await request.json()
 
-    if (!student_id || !font_id) {
-      return NextResponse.json({ error: "Missing student_id or font_id" }, { status: 400 })
+    if (!studentId || !theme) {
+      return NextResponse.json({ error: "Missing studentId or theme" }, { status: 400 })
     }
 
     const { error } = await supabase
-      .from("student_preferences")
-      .upsert(
-        { student_id, active_font: font_id },
-        { onConflict: "student_id" }
-      )
+      .from("students")
+      .update({ preferred_theme: theme })
+      .eq("id", studentId)
 
     if (error) {
-      console.error("[fonts] Error saving font:", error)
-      return NextResponse.json({ error: "Failed to save font" }, { status: 500 })
-    }
-
-    const fonts: Record<string, string> = { [student_id]: font_id }
-    return NextResponse.json({ success: true, fonts })
-  } catch (error) {
-    console.error("[fonts] Error saving font:", error)
-    return NextResponse.json({ error: "Failed to save font" }, { status: 500 })
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  try {
-    const supabase = getSupabase()
-    const { student_id } = await request.json()
-
-    if (!student_id) {
-      return NextResponse.json({ error: "Missing student_id" }, { status: 400 })
-    }
-
-    const { error } = await supabase
-      .from("student_preferences")
-      .update({ active_font: null })
-      .eq("student_id", student_id)
-
-    if (error) {
-      console.error("[fonts] Error clearing font:", error)
-      return NextResponse.json({ error: "Failed to clear font" }, { status: 500 })
+      console.error("[themes] Error saving theme:", error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error("[fonts] Error in DELETE /api/fonts:", error)
-    return NextResponse.json({ error: "Failed to clear font" }, { status: 500 })
+  } catch (error: any) {
+    console.error("[themes] Error saving theme:", error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
