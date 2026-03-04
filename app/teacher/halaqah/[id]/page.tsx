@@ -69,15 +69,26 @@ export default function HalaqahManagement() {
 		}
 	}, [router])
 
-	// التحقق مما إذا كان المعلم قد قام بالحفظ مسبقاً في هذا اليوم بتوقيت السعودية
+	// التحقق مما إذا كان المعلم قد قام بالحفظ مسبقاً في هذا اليوم — يتحقق من قاعدة البيانات
 	useEffect(() => {
 		if (teacherData?.halaqah) {
+			// تحقق أولاً من localStorage للسرعة
 			const todayKSA = getKsaDateString();
 			const lastSaveDate = localStorage.getItem(`last_save_${teacherData.halaqah}`);
-			
 			if (lastSaveDate === todayKSA) {
 				setHasSavedToday(true);
+				return;
 			}
+			// تحقق من قاعدة البيانات للأجهزة الأخرى
+			fetch(`/api/attendance?halaqah=${encodeURIComponent(teacherData.halaqah)}`)
+				.then((r) => r.json())
+				.then((data) => {
+					if (data.savedToday) {
+						setHasSavedToday(true);
+						localStorage.setItem(`last_save_${teacherData.halaqah}`, todayKSA);
+					}
+				})
+				.catch(() => {});
 		}
 	}, [teacherData])
 

@@ -20,6 +20,28 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const studentId = searchParams.get("student_id")
+    const halaqah = searchParams.get("halaqah")
+
+    // Check if attendance was already saved today for a halaqah
+    if (halaqah) {
+      const supabase = await createClient()
+      const today = new Date()
+      const saDate = new Date(today.toLocaleString("en-US", { timeZone: "Asia/Riyadh" }))
+      const todayDate = saDate.toISOString().split("T")[0]
+
+      const { data, error } = await supabase
+        .from("attendance_records")
+        .select("id")
+        .eq("halaqah", halaqah)
+        .eq("date", todayDate)
+        .limit(1)
+
+      if (error) {
+        return NextResponse.json({ error: "Failed to check" }, { status: 500 })
+      }
+
+      return NextResponse.json({ savedToday: (data?.length ?? 0) > 0 })
+    }
 
     if (!studentId) {
       return NextResponse.json({ error: "Student ID is required" }, { status: 400 })
