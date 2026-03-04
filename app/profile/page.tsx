@@ -72,7 +72,7 @@ function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "profile")
+  const [activeTab, setActiveTab] = useState(searchParams?.get("tab") || "profile")
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [isLoadingRecords, setIsLoadingRecords] = useState(false)
   const [rankingData, setRankingData] = useState<RankingData | null>(null)
@@ -119,7 +119,7 @@ function ProfilePage() {
   }, [])
 
   useEffect(() => {
-    const tab = searchParams.get("tab")
+    const tab = searchParams?.get("tab")
     if (tab) {
       setActiveTab(tab)
     }
