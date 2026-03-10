@@ -111,10 +111,14 @@ function NavItem({
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <div className="px-4 pt-5 pb-1.5">
-      <p className="text-[9px] font-black tracking-[0.2em] text-[#00312e]/35 uppercase">
-        {title}
-      </p>
+    <div className="px-4 pt-5 pb-2">
+      <div className="flex items-center gap-3">
+        <span className="h-px flex-1 bg-[#00312e]/12" />
+        <p className="text-[12px] font-extrabold tracking-[0.08em] text-[#5f6f6b] whitespace-nowrap">
+          {title}
+        </p>
+        <span className="h-px flex-1 bg-[#00312e]/12" />
+      </div>
     </div>
   );
 }
