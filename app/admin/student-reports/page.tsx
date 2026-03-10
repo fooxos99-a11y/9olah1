@@ -10,6 +10,7 @@ import { ArrowRight, Download, Calendar, BookOpen } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAdminAuth } from "@/hooks/use-admin-auth"
 import { SiteLoader } from "@/components/ui/site-loader"
+import { translateAttendanceStatus } from "@/lib/student-attendance"
 
 interface Circle {
   name: string
@@ -87,7 +88,7 @@ export default function StudentReportsPage() {
         const reports: StudentReport[] = data.records.map((record: any) => ({
           id: record.student_id,
           name: record.student_name,
-          attendance_status: record.status === "present" ? "حاضر" : record.status === "absent" ? "غائب" : "مستأذن",
+          attendance_status: translateAttendanceStatus(record.status) || "—",
           hafiz_level: getLevelDisplay(record.hafiz_level),
           tikrar_level: getLevelDisplay(record.tikrar_level),
           samaa_level: getLevelDisplay(record.samaa_level),
@@ -288,6 +289,8 @@ export default function StudentReportsPage() {
                                   className={`px-3 py-1 rounded-full font-bold text-white ${
                                     report.attendance_status === "حاضر"
                                       ? "bg-green-600"
+                                      : report.attendance_status === "متأخر"
+                                        ? "bg-orange-600"
                                       : report.attendance_status === "غائب"
                                         ? "bg-red-600"
                                         : "bg-yellow-600"

@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAlertDialog } from "@/hooks/use-confirm-dialog"
 import { SiteLoader } from "@/components/ui/site-loader"
 import { getAyahByPageFloat, getInclusiveEndAyah, SURAHS } from "@/lib/quran-data"
+import { type AttendanceStatus, isEvaluatedAttendance, isNonEvaluatedAttendance } from "@/lib/student-attendance"
 
 type EvaluationLevel = "excellent" | "very_good" | "good" | "not_completed" | null
 type EvaluationType = "hafiz" | "tikrar" | "samaa" | "rabet"
@@ -38,7 +39,7 @@ interface StudentAttendance {
 	name: string
 	halaqah: string
 	hasPlan: boolean
-	attendance: "present" | "absent" | "excused" | null
+	attendance: AttendanceStatus | null
 	evaluation?: EvaluationOption
 	readingDetails?: ReadingDetails
 	planReadingDetails?: ReadingDetails
@@ -48,7 +49,7 @@ interface StudentAttendance {
 
 interface SavedAttendanceRecord {
 	student_id: string
-	status: "present" | "absent" | "excused"
+	status: AttendanceStatus
 	hafiz_level?: EvaluationLevel
 	tikrar_level?: EvaluationLevel
 	samaa_level?: EvaluationLevel
@@ -268,7 +269,7 @@ const buildSavedReadingDetails = (record: SavedAttendanceRecord): ReadingDetails
 }
 
 const hasCompleteSavedRecord = (record: SavedAttendanceRecord, student: StudentAttendance) => {
-	if (record.status !== "present") return true
+	if (!isEvaluatedAttendance(record.status)) return true
 	if (!student.hasPlan) return false
 
 	return !!(
@@ -301,7 +302,7 @@ const mergeSavedAttendance = (student: StudentAttendance, record?: SavedAttendan
 }
 
 const hasCompletePresentEvaluation = (student: StudentAttendance) => {
-	if (student.attendance !== "present") return false
+	if (!isEvaluatedAttendance(student.attendance)) return false
 	if (!student.hasPlan) return false
 
 	return !!(
@@ -314,7 +315,7 @@ const hasCompletePresentEvaluation = (student: StudentAttendance) => {
 
 const isStudentReadyToSave = (student: StudentAttendance) => {
 	if (student.savedToday || student.attendance === null) return false
-	if (student.attendance !== "present") return true
+	if (!isEvaluatedAttendance(student.attendance)) return true
 	return hasCompletePresentEvaluation(student)
 }
 
@@ -532,9 +533,9 @@ export default function HalaqahManagement() {
 		)
 	}
 
-	const toggleAttendance = (id: string, status: "present" | "absent" | "excused") => {
+	const toggleAttendance = (id: string, status: AttendanceStatus) => {
 		const student = students.find((s) => s.id === id)
-		if (student?.savedToday) return
+		if (student?.savedToday || !student?.hasPlan) return
 
 		setStudents(
 			students.map((s) =>
@@ -543,7 +544,7 @@ export default function HalaqahManagement() {
 							...s,
 							attendance: status,
 							evaluation:
-								status === "absent" || status === "excused"
+								isNonEvaluatedAttendance(status)
 									? {}
 									: s.hasPlan
 										? s.evaluation
@@ -581,7 +582,8 @@ export default function HalaqahManagement() {
 					? {
 							...s,
 							evaluation: {
-								hafiz: s.hasPlan ? level : "not_completed",
+								...s.evaluation,
+								...(s.hasPlan ? { hafiz: level } : {}),
 								tikrar: level,
 								samaa: level,
 								rabet: level,
@@ -605,13 +607,13 @@ export default function HalaqahManagement() {
 
 		const studentsToSave = refreshedStudents.filter(isStudentReadyToSave)
 		const hasIncompletePresentStudents = refreshedStudents.some(
-			(student) => !student.savedToday && student.attendance === "present" && !hasCompletePresentEvaluation(student),
+			(student) => !student.savedToday && isEvaluatedAttendance(student.attendance) && !hasCompletePresentEvaluation(student),
 		)
 
 		if (studentsToSave.length === 0) {
 			await showAlert(
 				hasIncompletePresentStudents
-					? "يجب إكمال جميع فروع التقييم للطالب الحاضر قبل الحفظ."
+					? "يجب إكمال جميع فروع التقييم للطالب الحاضر أو المتأخر قبل الحفظ."
 					: "لا يوجد طلاب جدد جاهزون للحفظ اليوم",
 				"تحذير",
 			)
@@ -619,11 +621,11 @@ export default function HalaqahManagement() {
 		}
 
 		const allPresentsEvaluated = studentsToSave
-			.filter((s) => s.attendance === "present")
+			.filter((s) => isEvaluatedAttendance(s.attendance))
 			.every(hasCompletePresentEvaluation)
 
 		if (!allPresentsEvaluated) {
-			await showAlert("لم يتم تقييم جميع الطلاب الحاضرين في كل الفروع! تأكد من إكمال التقييم قبل الحفظ", "تحذير")
+			await showAlert("لم يتم تقييم جميع الطلاب الحاضرين أو المتأخرين في كل الفروع! تأكد من إكمال التقييم قبل الحفظ", "تحذير")
 			return
 		}
 
@@ -657,7 +659,7 @@ export default function HalaqahManagement() {
 						notes: student.notes || null,
 					}
 
-					if (student.attendance === "present" && student.evaluation) {
+					if (isEvaluatedAttendance(student.attendance) && student.evaluation) {
 						requestBody.hafiz_level = student.evaluation.hafiz || "not_completed"
 						requestBody.tikrar_level = student.evaluation.tikrar || "not_completed"
 						requestBody.samaa_level = student.evaluation.samaa || "not_completed"
@@ -729,7 +731,23 @@ export default function HalaqahManagement() {
 	const markAllPresent = () => {
 		setStudents(
 			students.map((s) =>
-				s.savedToday ? s : { ...s, attendance: "present", evaluation: s.evaluation || {}, readingDetails: s.planReadingDetails || {} },
+				s.savedToday
+					? s
+					: !s.hasPlan
+						? { ...s, attendance: null, evaluation: {}, readingDetails: s.planReadingDetails || {} }
+						: { ...s, attendance: "present", evaluation: s.evaluation || {}, readingDetails: s.planReadingDetails || {} },
+			),
+		)
+	}
+
+	const markAllLate = () => {
+		setStudents(
+			students.map((s) =>
+				s.savedToday
+					? s
+					: !s.hasPlan
+						? { ...s, attendance: null, evaluation: {}, readingDetails: s.planReadingDetails || {} }
+						: { ...s, attendance: "late", evaluation: s.evaluation || {}, readingDetails: s.planReadingDetails || {} },
 			),
 		)
 	}
@@ -737,7 +755,11 @@ export default function HalaqahManagement() {
 	const markAllAbsent = () => {
 		setStudents(
 			students.map((s) =>
-				s.savedToday ? s : { ...s, attendance: "absent", evaluation: {}, readingDetails: s.planReadingDetails || {} },
+				s.savedToday
+					? s
+					: !s.hasPlan
+						? { ...s, attendance: null, evaluation: {}, readingDetails: s.planReadingDetails || {} }
+						: { ...s, attendance: "absent", evaluation: {}, readingDetails: s.planReadingDetails || {} },
 			),
 		)
 	}
@@ -745,7 +767,11 @@ export default function HalaqahManagement() {
 	const markAllExcused = () => {
 		setStudents(
 			students.map((s) =>
-				s.savedToday ? s : { ...s, attendance: "excused", evaluation: {}, readingDetails: s.planReadingDetails || {} },
+				s.savedToday
+					? s
+					: !s.hasPlan
+						? { ...s, attendance: null, evaluation: {}, readingDetails: s.planReadingDetails || {} }
+						: { ...s, attendance: "excused", evaluation: {}, readingDetails: s.planReadingDetails || {} },
 			),
 		)
 	}
@@ -980,42 +1006,51 @@ export default function HalaqahManagement() {
 
 			<main className="flex-1 py-12 px-4">
 				<div className="container mx-auto max-w-7xl">
-					<div className="flex items-center gap-3 mb-8 flex-wrap">
-						<h1 className="text-2xl font-bold text-[#1a2332]">{halaqahName}</h1>
-						<div className="flex gap-2 items-center flex-wrap">
-							<Button
-								variant="outline"
-								onClick={markAllPresent}
-								disabled={isSaving}
-								className="text-sm h-9 rounded-lg border-[#D4AF37]/80 text-neutral-600 bg-white hover:bg-[#D4AF37]/10 hover:border-[#D4AF37] active:bg-[#D4AF37]/15 focus-visible:bg-[#D4AF37]/10 focus-visible:border-[#D4AF37] focus-visible:text-neutral-800 focus-visible:ring-[#D4AF37]/30 transition-all"
-							>
-								حاضر
-							</Button>
-							<Button
-								variant="outline"
-								onClick={markAllAbsent}
-								disabled={isSaving}
-								className="text-sm h-9 rounded-lg border-[#D4AF37]/80 text-neutral-600 bg-white hover:bg-[#D4AF37]/10 hover:border-[#D4AF37] active:bg-[#D4AF37]/15 focus-visible:bg-[#D4AF37]/10 focus-visible:border-[#D4AF37] focus-visible:text-neutral-800 focus-visible:ring-[#D4AF37]/30 transition-all"
-							>
-								غائب
-							</Button>
-							<Button
-								variant="outline"
-								onClick={markAllExcused}
-								disabled={isSaving}
-								className="text-sm h-9 rounded-lg border-[#D4AF37]/80 text-neutral-600 bg-white hover:bg-[#D4AF37]/10 hover:border-[#D4AF37] active:bg-[#D4AF37]/15 focus-visible:bg-[#D4AF37]/10 focus-visible:border-[#D4AF37] focus-visible:text-neutral-800 focus-visible:ring-[#D4AF37]/30 transition-all"
-							>
-								مستأذن
-							</Button>
-							<label className="plan-history-checkbox rounded-full border border-[#D4AF37]/70 bg-white/90 px-4 h-9 text-sm font-semibold text-[#1a2332] shadow-sm transition-all hover:bg-[#faf7f0]">
+					<div className="mb-8 overflow-x-auto pb-1">
+						<div className="flex min-w-max flex-row-reverse items-center justify-end gap-1.5 sm:gap-2">
+							<label className="plan-history-checkbox h-9 shrink-0 rounded-full border border-[#D4AF37]/70 bg-white/90 px-3 text-xs font-semibold text-[#1a2332] shadow-sm transition-all hover:bg-[#faf7f0] sm:px-4 sm:text-sm">
 								<input
 									type="checkbox"
 									checked={showReadingSegments}
 									onChange={(e) => setShowReadingSegments(e.target.checked)}
 								/>
-								<span className="plan-history-checkbox__label">عرض مقاطع القراءة</span>
+								<span className="plan-history-checkbox__label whitespace-nowrap">معاينة الخطط</span>
 								<span className="plan-history-checkbox__mark" aria-hidden="true" />
 							</label>
+							<div className="flex flex-row-reverse items-center gap-1.5 sm:gap-2">
+							<Button
+								variant="outline"
+								onClick={markAllLate}
+								disabled={isSaving}
+									className="h-9 shrink-0 rounded-lg border-[#D4AF37]/80 bg-white px-2 text-xs text-neutral-600 transition-all hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 active:bg-[#D4AF37]/15 focus-visible:border-[#D4AF37] focus-visible:bg-[#D4AF37]/10 focus-visible:text-neutral-800 focus-visible:ring-[#D4AF37]/30 sm:px-3 sm:text-sm"
+							>
+								متأخر
+							</Button>
+							<Button
+								variant="outline"
+								onClick={markAllExcused}
+								disabled={isSaving}
+									className="h-9 shrink-0 rounded-lg border-[#D4AF37]/80 bg-white px-2 text-xs text-neutral-600 transition-all hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 active:bg-[#D4AF37]/15 focus-visible:border-[#D4AF37] focus-visible:bg-[#D4AF37]/10 focus-visible:text-neutral-800 focus-visible:ring-[#D4AF37]/30 sm:px-3 sm:text-sm"
+							>
+								مستأذن
+							</Button>
+							<Button
+								variant="outline"
+								onClick={markAllAbsent}
+								disabled={isSaving}
+									className="h-9 shrink-0 rounded-lg border-[#D4AF37]/80 bg-white px-2 text-xs text-neutral-600 transition-all hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 active:bg-[#D4AF37]/15 focus-visible:border-[#D4AF37] focus-visible:bg-[#D4AF37]/10 focus-visible:text-neutral-800 focus-visible:ring-[#D4AF37]/30 sm:px-3 sm:text-sm"
+							>
+								غائب
+							</Button>
+							<Button
+								variant="outline"
+								onClick={markAllPresent}
+								disabled={isSaving}
+								className="h-9 shrink-0 rounded-lg border-[#D4AF37]/80 bg-white px-2 text-xs text-neutral-600 transition-all hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 active:bg-[#D4AF37]/15 focus-visible:border-[#D4AF37] focus-visible:bg-[#D4AF37]/10 focus-visible:text-neutral-800 focus-visible:ring-[#D4AF37]/30 sm:px-3 sm:text-sm"
+							>
+								حاضر
+							</Button>
+							</div>
 						</div>
 					</div>
 					{students.length === 0 ? (
@@ -1093,6 +1128,23 @@ export default function HalaqahManagement() {
 															</Button>
 															<Button
 																variant="outline"
+																onClick={() => toggleAttendance(student.id, "late")}
+																disabled={student.savedToday}
+																className={`flex-1 text-sm h-9 rounded-lg transition-all ${
+																	student.attendance === "late"
+																		? "font-bold"
+																		: "border-[#D4AF37]/80 text-neutral-600 hover:bg-[#D4AF37]/10 hover:border-[#D4AF37]"
+																}`}
+																style={student.attendance === "late" ? {
+																	backgroundColor: "rgba(212, 175, 55, 0.2)",
+																	borderColor: "#D4AF37",
+																	color: "#262626",
+																} : undefined}
+															>
+																متأخر
+															</Button>
+															<Button
+																variant="outline"
 																onClick={() => toggleAttendance(student.id, "absent")}
 																disabled={student.savedToday}
 																className={`flex-1 text-sm h-9 rounded-lg transition-all ${
@@ -1126,7 +1178,7 @@ export default function HalaqahManagement() {
 																مستأذن
 															</Button>
 														</div>
-														{student.attendance === "present" && !student.savedToday && student.hasPlan && (
+														{isEvaluatedAttendance(student.attendance) && !student.savedToday && student.hasPlan && (
 															<div className="space-y-2 pt-2">
 																<p className="text-sm font-semibold text-[#1a2332] text-center">تقييم الكل:</p>
 																<div className="grid grid-cols-2 gap-2">
@@ -1176,7 +1228,7 @@ export default function HalaqahManagement() {
 														</div>
 													</div>
 												)}
-												{student.attendance === "present" && !student.savedToday && student.hasPlan && (
+												{isEvaluatedAttendance(student.attendance) && !student.savedToday && student.hasPlan && (
 													<div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-6">
 														<EvaluationOption
 															studentId={student.id}

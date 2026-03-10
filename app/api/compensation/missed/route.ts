@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { getAyahByPageFloat, getInclusiveEndAyah, getSessionContent, SURAHS } from "@/lib/quran-data"
+import { isEvaluatedAttendance } from "@/lib/student-attendance"
 
 interface MissedDayItem {
   date: string
@@ -63,7 +64,7 @@ export async function GET(request: Request) {
     
     if (attendanceRecords) {
         for (const r of attendanceRecords) {
-            if (r.status === "present") {
+        if (isEvaluatedAttendance(r.status)) {
                 const evals = Array.isArray(r.evaluations) ? r.evaluations : r.evaluations ? [r.evaluations] : []
                 if (evals.length > 0) {
                     const ev = evals[evals.length - 1]

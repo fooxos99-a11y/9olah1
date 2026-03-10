@@ -174,6 +174,7 @@ function AdminDashboard() {
   const translateStatus = (status: string) => {
     const statusMap: Record<string, string> = {
       present: "حاضر",
+      late: "متأخر",
       absent: "غائب",
       excused: "مستأذن",
     }
@@ -1825,6 +1826,8 @@ function AdminDashboard() {
                                     className={`px-2 py-1 rounded-full text-sm ${
                                       record.status === "present"
                                         ? "bg-green-100 text-green-800"
+                                        : record.status === "late"
+                                          ? "bg-orange-100 text-orange-800"
                                         : record.status === "absent"
                                           ? "bg-red-100 text-red-800"
                                           : "bg-yellow-100 text-yellow-800"

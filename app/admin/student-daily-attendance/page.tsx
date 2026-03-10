@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Calendar } from "lucide-react"
 import { useAdminAuth } from "@/hooks/use-admin-auth"
 import { SiteLoader } from "@/components/ui/site-loader"
+import { isNonEvaluatedAttendance, translateAttendanceStatus } from "@/lib/student-attendance"
 
 function translateLevel(level: string | null | undefined) {
   if (!level) return null;
@@ -41,9 +42,10 @@ function LevelBadge({ level }: { level: string | null | undefined }) {
 
 function StatusBadge({ status }: { status: string | null }) {
   if (status === "present") return <span className="text-base font-semibold text-emerald-600">حاضر</span>;
+  if (status === "late") return <span className="text-base font-semibold text-orange-600">متأخر</span>;
   if (status === "excused") return <span className="text-base font-semibold text-amber-600">مستأذن</span>;
   if (status === "absent") return <span className="text-base font-semibold text-red-500">غائب</span>;
-  return <span className="text-gray-400 text-base">—</span>;
+  return <span className="text-gray-400 text-base">{translateAttendanceStatus(status) || "—"}</span>;
 }
 
 interface AttendanceRecord {
@@ -157,7 +159,7 @@ export default function StudentDailyAttendancePage() {
   })();
 
   const sorted = [...filteredRecords].sort((a, b) => {
-    const order: Record<string, number> = { absent: 0, excused: 1, present: 2 };
+    const order: Record<string, number> = { absent: 0, excused: 1, late: 2, present: 3 };
     return (order[a.status ?? ""] ?? 3) - (order[b.status ?? ""] ?? 3);
   });
 
@@ -255,22 +257,22 @@ export default function StudentDailyAttendancePage() {
                         <TableCell className="font-medium text-neutral-600 text-base">{record.halaqah || "—"}</TableCell>
                         <TableCell className="font-semibold text-[#1a2332] text-base">{record.student_name}</TableCell>
                         <TableCell className="text-center">
-                          {(record.status === "absent" || record.status === "excused")
+                          {isNonEvaluatedAttendance(record.status)
                             ? <span className="text-gray-300">—</span>
                             : <EvaluationCell level={record.hafiz_level} detail={formatReadingRange(record.hafiz_from_surah, record.hafiz_from_verse, record.hafiz_to_surah, record.hafiz_to_verse)} />}
                         </TableCell>
                         <TableCell className="text-center px-1">
-                          {(record.status === "absent" || record.status === "excused")
+                          {isNonEvaluatedAttendance(record.status)
                             ? <span className="text-gray-300">—</span>
                             : <LevelBadge level={record.tikrar_level} />}
                         </TableCell>
                         <TableCell className="text-center px-1">
-                          {(record.status === "absent" || record.status === "excused")
+                          {isNonEvaluatedAttendance(record.status)
                             ? <span className="text-gray-300">—</span>
                             : <EvaluationCell level={record.samaa_level} detail={formatReadingRange(record.samaa_from_surah, record.samaa_from_verse, record.samaa_to_surah, record.samaa_to_verse)} />}
                         </TableCell>
                         <TableCell className="text-center px-1">
-                          {(record.status === "absent" || record.status === "excused")
+                          {isNonEvaluatedAttendance(record.status)
                             ? <span className="text-gray-300">—</span>
                             : <EvaluationCell level={record.rabet_level} detail={formatReadingRange(record.rabet_from_surah, record.rabet_from_verse, record.rabet_to_surah, record.rabet_to_verse)} />}
                         </TableCell>

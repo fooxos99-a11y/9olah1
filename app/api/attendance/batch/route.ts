@@ -1,5 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import {
+  applyAttendancePointsAdjustment,
+  calculateTotalEvaluationPoints,
+  isEvaluatedAttendance,
+  isNonEvaluatedAttendance,
+} from "@/lib/student-attendance"
 
 function getKsaDateString() {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -14,21 +20,6 @@ function getKsaDateString() {
   const day = parts.find((part) => part.type === "day")?.value
 
   return `${year}-${month}-${day}`
-}
-
-function calculatePoints(level: string): number {
-  switch (level) {
-    case "excellent":
-      return 10
-    case "very_good":
-      return 8
-    case "good":
-      return 6
-    case "not_completed":
-      return 4
-    default:
-      return 0
-  }
 }
 
 function hasCompleteEvaluation(levels: {
@@ -57,7 +48,7 @@ export async function POST(request: NextRequest) {
     for (const student of students) {
       const status = student.attendance || "present"
       if (
-        status === "present" &&
+        isEvaluatedAttendance(status) &&
         !hasCompleteEvaluation({
           hafiz_level: student.evaluation?.hafiz,
           tikrar_level: student.evaluation?.tikrar,
@@ -66,7 +57,7 @@ export async function POST(request: NextRequest) {
         })
       ) {
         return NextResponse.json(
-          { error: "يجب إكمال جميع فروع التقييم للطالب الحاضر قبل الحفظ", student_id: student.id },
+          { error: "يجب إكمال جميع فروع التقييم للطالب الحاضر أو المتأخر قبل الحفظ", student_id: student.id },
           { status: 400 },
         )
       }
@@ -78,8 +69,7 @@ export async function POST(request: NextRequest) {
     for (const student of students) {
       const { id: student_id, attendance, evaluation } = student;
       let status = attendance || "present";
-      // إذا كان غائب أو مستأذن، اجعل كل التقييمات not_completed
-      let isAbsent = status === "absent" || status === "excused";
+      let isAbsent = isNonEvaluatedAttendance(status)
       let hafiz_level = isAbsent ? "not_completed" : (evaluation?.hafiz || "not_completed");
       let tikrar_level = isAbsent ? "not_completed" : (evaluation?.tikrar || "not_completed");
       let samaa_level = isAbsent ? "not_completed" : (evaluation?.samaa || "not_completed");
@@ -89,7 +79,7 @@ export async function POST(request: NextRequest) {
       // تحقق من وجود سجل حضور لهذا اليوم
       const { data: existingRecord } = await supabase
         .from("attendance_records")
-        .select("id")
+          .select("id, status")
         .eq("student_id", student_id)
         .eq("date", todayDate)
         .maybeSingle();
@@ -104,11 +94,15 @@ export async function POST(request: NextRequest) {
           .eq("attendance_record_id", existingRecord.id)
           .maybeSingle();
         if (oldEvaluation) {
-          oldPoints =
-            calculatePoints(oldEvaluation.hafiz_level) +
-            calculatePoints(oldEvaluation.tikrar_level) +
-            calculatePoints(oldEvaluation.samaa_level) +
-            calculatePoints(oldEvaluation.rabet_level);
+          oldPoints = applyAttendancePointsAdjustment(
+            calculateTotalEvaluationPoints({
+              hafiz_level: oldEvaluation.hafiz_level,
+              tikrar_level: oldEvaluation.tikrar_level,
+              samaa_level: oldEvaluation.samaa_level,
+              rabet_level: oldEvaluation.rabet_level,
+            }),
+            existingRecord?.status,
+          )
           await supabase.from("evaluations").delete().eq("attendance_record_id", existingRecord.id);
         }
         await supabase
@@ -117,29 +111,56 @@ export async function POST(request: NextRequest) {
           .eq("id", existingRecord.id);
         attendanceRecord = existingRecord;
         if (oldPoints > 0) {
-          const { data: studentData } = await supabase.from("students").select("points").eq("id", student_id).single();
+          const { data: studentData } = await supabase.from("students").select("points, store_points").eq("id", student_id).single();
           if (studentData) {
             const currentPoints = studentData.points || 0;
+            const currentStorePoints = studentData.store_points || 0;
             const newPoints = Math.max(0, currentPoints - oldPoints);
-            await supabase.from("students").update({ points: newPoints }).eq("id", student_id);
+            const newStorePoints = Math.max(0, currentStorePoints - oldPoints);
+            await supabase.from("students").update({ points: newPoints, store_points: newStorePoints }).eq("id", student_id);
           }
         }
       } else {
-        const { data: newRecord } = await supabase
+        const { data: newRecord, error: attendanceInsertError } = await supabase
           .from("attendance_records")
           .insert({ student_id, teacher_id, halaqah, status, date: todayDate })
           .select()
           .single();
+
+        if (attendanceInsertError) {
+          const isLateConstraintFailure =
+            status === "late" &&
+            /status|check|constraint|invalid input value/i.test(
+              `${attendanceInsertError.message ?? ""} ${attendanceInsertError.details ?? ""} ${attendanceInsertError.hint ?? ""}`,
+            )
+
+          return NextResponse.json(
+            {
+              error: isLateConstraintFailure
+                ? "قاعدة البيانات لا تسمح بعد بحالة متأخر في سجل الحضور. نفذ ملف scripts/042_allow_late_attendance_records.sql ثم أعد المحاولة."
+                : attendanceInsertError.message || "Failed to create attendance record",
+              student_id,
+              details: attendanceInsertError.details ?? null,
+              hint: attendanceInsertError.hint ?? null,
+              code: attendanceInsertError.code ?? null,
+            },
+            { status: 500 },
+          )
+        }
         attendanceRecord = newRecord;
       }
 
       // إضافة التقييم الجديد وحساب النقاط فقط إذا لم يكن غائب أو مستأذن
-      if (!isAbsent) {
-        const hafizPoints = calculatePoints(hafiz_level);
-        const tikrarPoints = calculatePoints(tikrar_level);
-        const samaaPoints = calculatePoints(samaa_level);
-        const rabetPoints = calculatePoints(rabet_level);
-        const totalPoints = hafizPoints + tikrarPoints + samaaPoints + rabetPoints;
+      if (isEvaluatedAttendance(status)) {
+        const totalPoints = applyAttendancePointsAdjustment(
+          calculateTotalEvaluationPoints({
+            hafiz_level,
+            tikrar_level,
+            samaa_level,
+            rabet_level,
+          }),
+          status,
+        )
         const { data: evaluationResult, error: evaluationError } = await supabase
           .from("evaluations")
           .insert({
@@ -164,11 +185,13 @@ export async function POST(request: NextRequest) {
 
         console.log(`[DEBUG][API] التقييم المخزن في قاعدة البيانات:`, evaluationResult);
         if (totalPoints > 0) {
-          const { data: studentData } = await supabase.from("students").select("points").eq("id", student_id).single();
+          const { data: studentData } = await supabase.from("students").select("points, store_points").eq("id", student_id).single();
           if (studentData) {
             const currentPoints = studentData.points || 0;
+            const currentStorePoints = studentData.store_points || 0;
             const newPoints = currentPoints + totalPoints;
-            await supabase.from("students").update({ points: newPoints }).eq("id", student_id);
+            const newStorePoints = currentStorePoints + totalPoints;
+            await supabase.from("students").update({ points: newPoints, store_points: newStorePoints }).eq("id", student_id);
           }
         }
         results.push({ student_id, success: true, pointsAdded: totalPoints });

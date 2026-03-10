@@ -1,5 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import {
+  applyAttendancePointsAdjustment,
+  calculateEvaluationLevelPoints,
+  calculateTotalEvaluationPoints,
+  isEvaluatedAttendance,
+  isNonEvaluatedAttendance,
+} from "@/lib/student-attendance"
 
 function getKsaDateString() {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -14,21 +21,6 @@ function getKsaDateString() {
   const day = parts.find((part) => part.type === "day")?.value
 
   return `${year}-${month}-${day}`
-}
-
-function calculatePoints(level: string): number {
-  switch (level) {
-    case "excellent":
-      return 10
-    case "very_good":
-      return 8
-    case "good":
-      return 6
-    case "not_completed":
-      return 4
-    default:
-      return 0
-  }
 }
 
 function hasCompleteEvaluation(levels: {
@@ -102,7 +94,7 @@ export async function GET(request: NextRequest) {
           ? evaluations[evaluations.length - 1]
           : null;
 
-        const isAbsent = record.status === "absent" || record.status === "excused";
+        const isAbsent = isNonEvaluatedAttendance(record.status)
         return {
           id: record.id,
           date: record.date,
@@ -178,14 +170,14 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedStatus = status || "present"
-    const isPresent = normalizedStatus === "present"
+    const isPresent = isEvaluatedAttendance(normalizedStatus)
 
     if (
       isPresent &&
       !hasCompleteEvaluation({ hafiz_level, tikrar_level, samaa_level, rabet_level })
     ) {
       return NextResponse.json(
-        { error: "يجب إكمال جميع فروع التقييم للطالب الحاضر قبل الحفظ" },
+        { error: "يجب إكمال جميع فروع التقييم للطالب الحاضر أو المتأخر قبل الحفظ" },
         { status: 400 },
       )
     }
@@ -245,12 +237,28 @@ export async function POST(request: NextRequest) {
 
     if (attendanceError) {
       console.error("[v0] Error creating attendance record:", attendanceError)
-      return NextResponse.json({ error: "Failed to create attendance record" }, { status: 500 })
+      const isLateConstraintFailure =
+        normalizedStatus === "late" &&
+        /status|check|constraint|invalid input value/i.test(
+          `${attendanceError.message ?? ""} ${attendanceError.details ?? ""} ${attendanceError.hint ?? ""}`,
+        )
+
+      return NextResponse.json(
+        {
+          error: isLateConstraintFailure
+            ? "قاعدة البيانات لا تسمح بعد بحالة متأخر في سجل الحضور. نفذ ملف scripts/042_allow_late_attendance_records.sql ثم أعد المحاولة."
+            : attendanceError.message || "Failed to create attendance record",
+          details: attendanceError.details ?? null,
+          hint: attendanceError.hint ?? null,
+          code: attendanceError.code ?? null,
+        },
+        { status: 500 },
+      )
     }
 
     attendanceRecord = newRecord
 
-    if (normalizedStatus !== "present") {
+    if (!isEvaluatedAttendance(normalizedStatus)) {
       return NextResponse.json({
         success: true,
         attendance: attendanceRecord,
@@ -260,18 +268,26 @@ export async function POST(request: NextRequest) {
     }
 
     if (hasCompleteEvaluation({ hafiz_level, tikrar_level, samaa_level, rabet_level })) {
-      const hafizPoints = calculatePoints(hafiz_level)
-      const tikrarPoints = calculatePoints(tikrar_level)
-      const samaaPoints = calculatePoints(samaa_level)
-      const rabetPoints = calculatePoints(rabet_level)
+      const hafizPoints = calculateEvaluationLevelPoints(hafiz_level)
+      const tikrarPoints = calculateEvaluationLevelPoints(tikrar_level)
+      const samaaPoints = calculateEvaluationLevelPoints(samaa_level)
+      const rabetPoints = calculateEvaluationLevelPoints(rabet_level)
 
-      const totalPoints = hafizPoints + tikrarPoints + samaaPoints + rabetPoints
+      const rawPoints = calculateTotalEvaluationPoints({
+        hafiz_level,
+        tikrar_level,
+        samaa_level,
+        rabet_level,
+      })
+      const totalPoints = applyAttendancePointsAdjustment(rawPoints, normalizedStatus)
 
       console.log("[v0] Points breakdown:", {
         hafiz: hafizPoints,
         tikrar: tikrarPoints,
         samaa: samaaPoints,
         rabet: rabetPoints,
+        raw: rawPoints,
+        penalty: normalizedStatus === "late" ? 8 : 0,
         total: totalPoints,
       })
 
@@ -356,7 +372,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: "يجب إكمال جميع فروع التقييم للطالب الحاضر قبل الحفظ" },
+      { error: "يجب إكمال جميع فروع التقييم للطالب الحاضر أو المتأخر قبل الحفظ" },
       { status: 400 },
     )
   } catch (error) {

@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { SURAHS, calculateTotalPages, calculateTotalDays, calculateQuranMemorizationProgress } from "@/lib/quran-data"
+import { isEvaluatedAttendance } from "@/lib/student-attendance"
 
 const POSITIVE_MEMORIZATION_LEVELS = ["excellent", "good", "very_good", "average"]
 
 function hasCompletedMemorization(record: any) {
-  if (record.status !== "present") return false
+  if (!isEvaluatedAttendance(record.status)) return false
 
   const evaluations = Array.isArray(record.evaluations)
     ? record.evaluations

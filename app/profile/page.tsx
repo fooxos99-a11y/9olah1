@@ -18,6 +18,7 @@ import { EffectSelector } from "@/components/effect-selector"
 import { BadgeSelector } from "@/components/badge-selector"
 import { FontSelector } from "@/components/font-selector"
 import { SiteLoader } from "@/components/ui/site-loader"
+import { isEvaluatedAttendance, translateAttendanceStatus } from "@/lib/student-attendance"
 
 interface StudentData {
   id: string
@@ -584,16 +585,14 @@ function ProfilePage() {
                                 className={
                                   record.status === "present"
                                     ? "bg-green-100 text-green-800 text-base font-bold px-3 py-1"
+                                    : record.status === "late"
+                                    ? "bg-orange-100 text-orange-800 text-base font-bold px-3 py-1"
                                     : record.status === "excused"
                                     ? "bg-yellow-100 text-yellow-800 text-base font-bold px-3 py-1"
                                     : "bg-red-100 text-red-800 text-base font-bold px-3 py-1"
                                 }
                               >
-                                {record.status === "present"
-                                  ? "حاضر"
-                                  : record.status === "excused"
-                                  ? "مستأذن"
-                                  : "غائب"}
+                                {translateAttendanceStatus(record.status)}
                               </Badge>
                             </div>
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 text-center">
@@ -777,8 +776,8 @@ function ProfilePage() {
                         {(() => {
                           const todayDateStr = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Riyadh" })).toISOString().split("T")[0];
                           const todayRecord = attendanceRecords.find(r => r.date === todayDateStr);
-                          const isMuraajaaCompleted = todayRecord?.status === "present" && todayRecord?.samaa_level && todayRecord?.samaa_level !== "not_completed";
-                          const isRabtCompleted = todayRecord?.status === "present" && todayRecord?.rabet_level && todayRecord?.rabet_level !== "not_completed";
+                          const isMuraajaaCompleted = isEvaluatedAttendance(todayRecord?.status) && todayRecord?.samaa_level && todayRecord?.samaa_level !== "not_completed";
+                          const isRabtCompleted = isEvaluatedAttendance(todayRecord?.status) && todayRecord?.rabet_level && todayRecord?.rabet_level !== "not_completed";
 
                           return (muraajaaContent || rabtContent) ? (
                             <div className="flex flex-row-reverse gap-2 shrink-0 max-w-[55%]">
