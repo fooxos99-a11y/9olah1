@@ -664,20 +664,14 @@ export default function StudentPlansPage() {
   };
 
   const openResetDialog = async () => {
-    setResetDialogOpen(true);
-    setResetDialogCircle(null);
-    setIsResetDialogLoading(true);
-
-    try {
-      const res = await fetch("/api/students", { cache: "no-store" });
-      const data = await res.json();
-      setResetDialogStudents(data.students || []);
-    } catch (error) {
-      console.error(error);
-      setResetDialogStudents([]);
-    } finally {
-      setIsResetDialogLoading(false);
+    if (!selectedCircle) {
+      return;
     }
+
+    setResetDialogOpen(true);
+    setResetDialogCircle(selectedCircle);
+    setResetDialogStudents(students);
+    setIsResetDialogLoading(false);
   };
 
   // السور مرتبة تنازلياً (من الناس إلى البقرة)
@@ -927,12 +921,14 @@ export default function StudentPlansPage() {
             <div>
               <h1 className="text-2xl font-bold text-[#1a2332]">خطط الطلاب</h1>
             </div>
-            <button
-              onClick={openResetDialog}
-              className="mr-auto rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
-            >
-              إعادة حفظ طالب
-            </button>
+            {selectedCircle && (
+              <button
+                onClick={openResetDialog}
+                className="mr-auto rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
+              >
+                إعادة حفظ طالب
+              </button>
+            )}
           </div>
 
           {/* اختيار الحلقة */}
