@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { useAlertDialog } from "@/hooks/use-confirm-dialog"
 import { SiteLoader } from "@/components/ui/site-loader"
-import { getActivePlanDayNumber, getAyahByPageFloat, getInclusiveEndAyah, getPlanSessionContent, SURAHS } from "@/lib/quran-data"
+import { getActivePlanDayNumber, getAyahByPageFloat, getInclusiveEndAyah, getPlanSessionContent, resolvePlanTotalDays, resolvePlanTotalPages, SURAHS } from "@/lib/quran-data"
 import { type AttendanceStatus, isEvaluatedAttendance, isNonEvaluatedAttendance } from "@/lib/student-attendance"
 
 type EvaluationLevel = "excellent" | "very_good" | "good" | "not_completed" | null
@@ -165,8 +165,8 @@ const getPlanReadingDetails = (plan: StudentPlan | null, completedDays: number):
 	if (!plan) return {}
 
 	const daily = Number(plan.daily_pages) || 0
-	const totalPages = Number(plan.total_pages) || 0
-	const totalDays = Number(plan.total_days) || 0
+	const totalPages = resolvePlanTotalPages(plan)
+	const totalDays = resolvePlanTotalDays(plan)
 	const direction = plan.direction || "asc"
 	const startSurahData = SURAHS.find((surah) => surah.number === Math.min(plan.start_surah_number, plan.end_surah_number))
 	const planStartPage = startSurahData?.startPage || 1

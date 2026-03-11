@@ -481,15 +481,15 @@ export const PAGE_REFERENCES = [
   },
   {
     "surah": 5,
-    "ayah": 77
+    "ayah": 78
   },
   {
     "surah": 5,
-    "ayah": 83
+    "ayah": 84
   },
   {
     "surah": 5,
-    "ayah": 90
+    "ayah": 91
   },
   {
     "surah": 5,
@@ -577,7 +577,7 @@ export const PAGE_REFERENCES = [
   },
   {
     "surah": 6,
-    "ayah": 132
+    "ayah": 131
   },
   {
     "surah": 6,
@@ -2125,15 +2125,15 @@ export const PAGE_REFERENCES = [
   },
   {
     "surah": 55,
-    "ayah": 17
+    "ayah": 19
   },
   {
     "surah": 55,
-    "ayah": 41
+    "ayah": 42
   },
   {
     "surah": 55,
-    "ayah": 68
+    "ayah": 70
   },
   {
     "surah": 56,
@@ -2257,7 +2257,7 @@ export const PAGE_REFERENCES = [
   },
   {
     "surah": 68,
-    "ayah": 16
+    "ayah": 17
   },
   {
     "surah": 68,
@@ -2269,7 +2269,7 @@ export const PAGE_REFERENCES = [
   },
   {
     "surah": 69,
-    "ayah": 35
+    "ayah": 36
   },
   {
     "surah": 70,
@@ -2277,7 +2277,7 @@ export const PAGE_REFERENCES = [
   },
   {
     "surah": 70,
-    "ayah": 40
+    "ayah": 41
   },
   {
     "surah": 71,
@@ -2301,7 +2301,7 @@ export const PAGE_REFERENCES = [
   },
   {
     "surah": 74,
-    "ayah": 18
+    "ayah": 19
   },
   {
     "surah": 74,
@@ -2333,15 +2333,15 @@ export const PAGE_REFERENCES = [
   },
   {
     "surah": 79,
-    "ayah": 16
+    "ayah": 17
   },
   {
     "surah": 80,
     "ayah": 1
   },
   {
-    "surah": 81,
-    "ayah": 1
+    "surah": 80,
+    "ayah": 41
   },
   {
     "surah": 82,
@@ -2349,15 +2349,15 @@ export const PAGE_REFERENCES = [
   },
   {
     "surah": 83,
-    "ayah": 7
+    "ayah": 5
   },
   {
     "surah": 83,
-    "ayah": 35
+    "ayah": 34
   },
   {
-    "surah": 85,
-    "ayah": 1
+    "surah": 84,
+    "ayah": 25
   },
   {
     "surah": 86,
@@ -2365,39 +2365,39 @@ export const PAGE_REFERENCES = [
   },
   {
     "surah": 87,
-    "ayah": 16
+    "ayah": 11
+  },
+  {
+    "surah": 88,
+    "ayah": 23
   },
   {
     "surah": 89,
-    "ayah": 1
+    "ayah": 23
   },
   {
-    "surah": 89,
-    "ayah": 24
-  },
-  {
-    "surah": 91,
-    "ayah": 1
+    "surah": 90,
+    "ayah": 19
   },
   {
     "surah": 92,
-    "ayah": 15
+    "ayah": 10
   },
   {
-    "surah": 95,
-    "ayah": 1
+    "surah": 94,
+    "ayah": 3
   },
   {
-    "surah": 97,
-    "ayah": 1
+    "surah": 96,
+    "ayah": 13
   },
   {
     "surah": 98,
-    "ayah": 8
+    "ayah": 6
   },
   {
     "surah": 100,
-    "ayah": 10
+    "ayah": 6
   },
   {
     "surah": 103,

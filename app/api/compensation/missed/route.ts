@@ -57,7 +57,7 @@ export async function GET(request: Request) {
       .lte("date", yesterdayStr)
       .order("date", { ascending: true })
 
-    const POSITIVE_LEVELS = ["excellent", "good", "very_good", "average"]
+    const ADVANCING_LEVELS = ["excellent", "good", "very_good"]
     
     // Create a Set of completed dates
     const completedDates = new Set()
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
                 const evals = Array.isArray(r.evaluations) ? r.evaluations : r.evaluations ? [r.evaluations] : []
                 if (evals.length > 0) {
                     const ev = evals[evals.length - 1]
-                    if (POSITIVE_LEVELS.includes(ev.hafiz_level ?? "")) {
+                    if (ADVANCING_LEVELS.includes(ev.hafiz_level ?? "")) {
                         completedDates.add(r.date)
                     }
                 }

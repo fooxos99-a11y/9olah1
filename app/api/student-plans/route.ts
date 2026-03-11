@@ -1,10 +1,10 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
-import { SURAHS, calculateTotalPages, calculateTotalDays, calculateQuranMemorizationProgress } from "@/lib/quran-data"
+import { SURAHS, calculateTotalPages, calculateTotalDays, calculateQuranMemorizationProgress, resolvePlanTotalDays, resolvePlanTotalPages } from "@/lib/quran-data"
 import { getSaudiDateString } from "@/lib/saudi-time"
 import { isEvaluatedAttendance } from "@/lib/student-attendance"
 
-const POSITIVE_MEMORIZATION_LEVELS = ["excellent", "good", "very_good", "average"]
+const ADVANCING_MEMORIZATION_LEVELS = ["excellent", "good", "very_good"]
 
 function hasCompletedMemorization(record: any) {
   if (!isEvaluatedAttendance(record.status)) return false
@@ -18,7 +18,7 @@ function hasCompletedMemorization(record: any) {
   if (evaluations.length === 0) return false
 
   const latestEvaluation = evaluations[evaluations.length - 1]
-  return POSITIVE_MEMORIZATION_LEVELS.includes(latestEvaluation?.hafiz_level ?? "")
+  return ADVANCING_MEMORIZATION_LEVELS.includes(latestEvaluation?.hafiz_level ?? "")
 }
 
 function getExpectedNextStart(prevStartSurah?: number | null, prevEndSurah?: number | null, prevEndVerse?: number | null) {
@@ -82,7 +82,12 @@ export async function GET(request: Request) {
         return NextResponse.json({ plan: null, completedDays: 0 })
       }
 
-      const plan = plans[0] // الخطة الأحدث هي الفعالة
+      const rawPlan = plans[0] // الخطة الأحدث هي الفعالة
+      const plan = {
+        ...rawPlan,
+        total_pages: resolvePlanTotalPages(rawPlan),
+        total_days: resolvePlanTotalDays(rawPlan),
+      }
 
       // جلب سجلات الحضور مع تقييماتها (join مع evaluations)
       let attQuery = supabase

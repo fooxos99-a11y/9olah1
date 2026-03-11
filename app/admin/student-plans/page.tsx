@@ -145,15 +145,6 @@ function getPreferredEndSurah(
   return nearest?.number ?? selectedStartSurah;
 }
 
-function rotateSurahOptions(options: typeof SURAHS, anchorSurahNumber?: number | null) {
-  if (!anchorSurahNumber) return options;
-
-  const anchorIndex = options.findIndex((surah) => surah.number === anchorSurahNumber);
-  if (anchorIndex <= 0) return options;
-
-  return [...options.slice(anchorIndex), ...options.slice(0, anchorIndex)];
-}
-
 function getNextStartFromPrevious(
   prevStartSurahValue: string,
   prevEndSurahValue: string,
@@ -517,8 +508,6 @@ export default function StudentPlansPage() {
   };
 
   // السور مرتبة تنازلياً (من الناس إلى البقرة)
-  const surahsDescending = [...SURAHS].reverse();
-
   const startNum = startSurah ? parseInt(startSurah) : null;
   const endNum = endSurah ? parseInt(endSurah) : null;
   const direction = (startNum && endNum && startNum > endNum) ? "desc" : "asc";
@@ -580,17 +569,7 @@ export default function StudentPlansPage() {
   const endSurahOptions = (() => {
     if (!startNum) return startSurahOptions;
 
-    const preferredDirection = endNum
-      ? direction
-      : hasPrevious && prevStartSurah && prevEndSurah && parseInt(prevStartSurah, 10) > parseInt(prevEndSurah, 10)
-        ? "desc"
-        : "asc";
-
-    const orderedOptions = preferredDirection === "desc"
-      ? startSurahOptions.slice().sort((left, right) => right.number - left.number)
-      : startSurahOptions.slice().sort((left, right) => left.number - right.number);
-
-    return rotateSurahOptions(orderedOptions, endNum ?? startNum);
+    return startSurahOptions.slice().sort((left, right) => left.number - right.number);
   })();
 
   const endVerseOptions = (() => {
@@ -994,7 +973,7 @@ export default function StudentPlansPage() {
                               <CommandInput placeholder="ابحث عن سورة..." className="text-xs h-8" />
                               <CommandEmpty>لا توجد نتائج</CommandEmpty>
                               <CommandList className="max-h-48 overflow-y-auto surah-scroll" onWheel={(e) => { e.stopPropagation(); e.currentTarget.scrollTop += e.deltaY; }}>
-                                {(direction === "asc" ? SURAHS : surahsDescending).map((s) => (
+                                {SURAHS.map((s) => (
                                   <CommandItem key={s.number} id={`prevStartSurah-${s.number}`} value={s.name} onSelect={() => { setPrevStartSurah(s.number.toString()); setPrevStartOpen(false); setPrevStartVerse(""); }}>
                                     {s.name}
                                     {prevStartSurah === s.number.toString() && <Check className="w-3.5 h-3.5 mr-auto text-[#D4AF37]" />}
@@ -1042,7 +1021,7 @@ export default function StudentPlansPage() {
                               <CommandInput placeholder="ابحث عن سورة..." className="text-xs h-8" />
                               <CommandEmpty>لا توجد نتائج</CommandEmpty>
                               <CommandList className="max-h-48 overflow-y-auto surah-scroll" onWheel={(e) => { e.stopPropagation(); e.currentTarget.scrollTop += e.deltaY; }}>
-                                {(direction === "asc" ? SURAHS : surahsDescending).map((s) => (
+                                {SURAHS.map((s) => (
                                   <CommandItem key={s.number} id={`prevEndSurah-${s.number}`} value={s.name} onSelect={() => { setPrevEndSurah(s.number.toString()); setPrevEndOpen(false); setPrevEndVerse(""); }}>
                                     {s.name}
                                     {prevEndSurah === s.number.toString() && <Check className="w-3.5 h-3.5 mr-auto text-[#D4AF37]" />}

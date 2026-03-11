@@ -242,6 +242,48 @@ export function calculateTotalDays(totalPages: number, dailyPages: number): numb
   return Math.ceil(totalPages / dailyPages)
 }
 
+export function resolvePlanTotalPages(plan: {
+  start_surah_number?: number | null
+  start_verse?: number | null
+  end_surah_number?: number | null
+  end_verse?: number | null
+  total_pages?: number | null
+}) {
+  if (plan.start_surah_number && plan.end_surah_number) {
+    const calculatedPages = calculateTotalPages(
+      Number(plan.start_surah_number),
+      Number(plan.end_surah_number),
+      plan.start_verse,
+      plan.end_verse,
+    )
+
+    if (calculatedPages > 0) {
+      return calculatedPages
+    }
+  }
+
+  return Number(plan.total_pages) || 0
+}
+
+export function resolvePlanTotalDays(plan: {
+  start_surah_number?: number | null
+  start_verse?: number | null
+  end_surah_number?: number | null
+  end_verse?: number | null
+  total_pages?: number | null
+  daily_pages?: number | null
+  total_days?: number | null
+}) {
+  const resolvedPages = resolvePlanTotalPages(plan)
+  const dailyPages = Number(plan.daily_pages) || 0
+
+  if (resolvedPages > 0 && dailyPages > 0) {
+    return calculateTotalDays(resolvedPages, dailyPages)
+  }
+
+  return Number(plan.total_days) || 0
+}
+
 export function calculateCompletedPlanPages(
   totalPages: number,
   dailyPages: number,
@@ -743,7 +785,7 @@ export function getPlanStartPage(plan: Pick<SessionPlanBounds, "start_surah_numb
 
 export function getPlanSessionContent(plan: SessionPlanBounds, sessionNum: number): PlanSessionContent | null {
   const dailyPages = Number(plan.daily_pages) || 0
-  const totalPages = Number(plan.total_pages) || 0
+  const totalPages = resolvePlanTotalPages(plan)
   const direction = plan.direction === "desc" ? "desc" : "asc"
   const hasExplicitStartVerse = plan.start_verse !== null && plan.start_verse !== undefined
   const hasExplicitEndVerse = plan.end_verse !== null && plan.end_verse !== undefined

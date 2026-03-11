@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { User, Trophy, Award, Calendar, Star, BarChart3, Medal, Gem, Flame, Zap, Crown, Heart, BookMarked, CheckCircle2, Clock, BookOpen, Library, Check, PlayCircle, Lock } from "lucide-react"
-import { getActivePlanDayNumber, getDisplayCompletedDays, getJuzCoverageFromRange, getPlanMemorizedRange, getPlanSessionContent, getOffsetContent, getStoredMemorizedRange, SURAHS } from "@/lib/quran-data"
+import { getActivePlanDayNumber, getDisplayCompletedDays, getJuzCoverageFromRange, getPlanMemorizedRange, getPlanSessionContent, getOffsetContent, getStoredMemorizedRange, resolvePlanTotalDays, resolvePlanTotalPages, SURAHS } from "@/lib/quran-data"
 import { Button } from "@/components/ui/button"
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog"
 import { ThemeSwitcher } from "@/components/theme-switcher"
@@ -620,8 +620,8 @@ function ProfilePage() {
                   </div>
                 ) : (() => {
                   const daily = planData.daily_pages as number
-                  const totalDays = planData.total_days as number
-                  const totalPages = planData.total_pages as number
+                  const totalDays = resolvePlanTotalDays(planData)
+                  const totalPages = resolvePlanTotalPages(planData)
                   const planDirection = (planData.direction as "asc" | "desc") || "asc"
                   const planFromSurah = planDirection === "asc" ? planData.start_surah_name : planData.end_surah_name
                   const planToSurah = planDirection === "asc" ? planData.end_surah_name : planData.start_surah_name
@@ -677,7 +677,7 @@ function ProfilePage() {
                       }
                     }
                     
-                    const completedCurrentPlanPages = (activeDayNum - 1) * planData.daily_pages;
+                    const completedCurrentPlanPages = (activeDayNum - 1) * daily;
                     const tmp = prevVolume + completedCurrentPlanPages;
                     
                     if (tmp > 0) {
@@ -760,7 +760,7 @@ function ProfilePage() {
                       <div className="bg-white rounded-2xl border-2 overflow-hidden" style={{ borderColor: "#d8a35526" }}>
                         <div className="px-5 py-4 border-b border-[#d8a355]/20 flex items-center justify-between">
                           <h4 className="font-bold text-[#1a2332]">جدول الخطة</h4>
-                          <span className="text-xs text-neutral-400">{planData.daily_pages === 0.25 ? "ربع وجه يومياً" : planData.daily_pages === 0.5 ? "نصف وجه يومياً" : planData.daily_pages === 1 ? "وجه يومياً" : "وجهان يومياً"}</span>
+                          <span className="text-xs text-neutral-400">{daily === 0.25 ? "ربع وجه يومياً" : daily === 0.5 ? "نصف وجه يومياً" : daily === 1 ? "وجه يومياً" : "وجهان يومياً"}</span>
                         </div>
                         <div className="relative">
                           {/* خط التسلسل */}
