@@ -344,7 +344,12 @@ function ProfilePage() {
 
   function formatReadingRange(fromSurah?: string | null, fromVerse?: string | null, toSurah?: string | null, toVerse?: string | null) {
     if (!fromSurah || !fromVerse || !toSurah || !toVerse) return null
-    return `${fromSurah} ${fromVerse} - ${toSurah} ${toVerse}`
+    return `من سورة ${fromSurah} آية ${fromVerse} إلى سورة ${toSurah} آية ${toVerse}`
+  }
+
+  function formatPlanSessionRange(fromSurah?: string | null, fromVerse?: string | null, toSurah?: string | null, toVerse?: string | null, fallbackText?: string | null) {
+    if (!fromSurah || !fromVerse || !toSurah || !toVerse) return fallbackText || "-"
+    return `من سورة ${fromSurah} آية ${fromVerse} إلى سورة ${toSurah} آية ${toVerse}`
   }
 
   const normalizedPlanData = planData
@@ -511,7 +516,6 @@ function ProfilePage() {
                 <Card className="rounded-none border-0 shadow-none">
                   <CardHeader className="bg-white">
                     <CardTitle className="text-2xl font-bold text-[#c99347]">سجلات الحضور والتقييم</CardTitle>
-                    <CardDescription className="text-lg font-semibold text-[#1a2332]/80">سجلات الحضور والتقييمات الخاصة بك</CardDescription>
                   </CardHeader>
                   <CardContent className="pt-6 space-y-4">
                     {isLoadingRecords ? (
@@ -525,7 +529,6 @@ function ProfilePage() {
                           style={{ color: "#d8a355" }}
                         />
                         <p className="text-2xl font-bold text-[#c99347] mb-2">لا توجد سجلات حضور حالياً</p>
-                        <p className="text-lg text-[#1a2332]/50">سيتم تسجيل حضورك وتقييماتك من قبل المعلم</p>
                       </div>
                     ) : (
                       <div className="flex flex-col gap-4">
@@ -802,7 +805,13 @@ function ProfilePage() {
                                       )}
                                     </div>
                                     <p className={`text-[11px] mt-0.5 ${completed ? "text-emerald-600/70" : "text-neutral-400"}`}>
-                                      {sessionContent?.text || "-"}
+                                      {formatPlanSessionRange(
+                                        sessionContent?.fromSurah,
+                                        sessionContent?.fromVerse,
+                                        sessionContent?.toSurah,
+                                        sessionContent?.toVerse,
+                                        sessionContent?.text,
+                                      )}
                                     </p>
                                   </div>
                                   {/* التاريخ */}
@@ -826,7 +835,6 @@ function ProfilePage() {
                 <Card className="rounded-none border-0 shadow-none">
                   <CardHeader className="bg-white p-4 md:p-6">
                     <CardTitle className="text-xl md:text-2xl text-[#1a2332]">السجل الشامل للمحفوظ</CardTitle>
-                    <CardDescription className="text-[#1a2332]/60">يحتوي على الأجزاء التي تم إتمامها والتي يتم دراستها حالياً</CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2 md:pt-3 space-y-4 md:space-y-6">
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">

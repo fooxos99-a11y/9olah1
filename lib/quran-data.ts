@@ -529,7 +529,7 @@ export function getSessionContent(
   if (startRef.surah === endRef.surah && startRef.ayah === endRef.ayah && startCustom === endCustom) {
     formattedText = `${startSurahName} ${startRef.ayah}${startCustom}`;
   } else {
-    formattedText = `${startSurahName} ${startRef.ayah}${startCustom} - ${endSurahName} ${endRef.ayah}${endCustom}`;
+    formattedText = `${startSurahName} ${startRef.ayah}${startCustom} الى ${endSurahName} ${endRef.ayah}${endCustom}`;
   }
 
   return {
@@ -594,7 +594,7 @@ function formatPlanSessionContent(fromRef: AyahReference, toRef: AyahReference):
 
   const text = fromRef.surah === toRef.surah && fromRef.ayah === toRef.ayah
     ? `${fromSurah.name} ${fromRef.ayah}`
-    : `${fromSurah.name} ${fromRef.ayah} - ${toSurah.name} ${toRef.ayah}`
+    : `${fromSurah.name} ${fromRef.ayah} الى ${toSurah.name} ${toRef.ayah}`
 
   return {
     text,
@@ -603,6 +603,116 @@ function formatPlanSessionContent(fromRef: AyahReference, toRef: AyahReference):
     toSurah: toSurah.name,
     toVerse: String(toRef.ayah),
   }
+}
+
+function createPlanSessionContent(fromRef: AyahReference, toRef: AyahReference, text?: string): PlanSessionContent | null {
+  const baseContent = formatPlanSessionContent(fromRef, toRef)
+  if (!baseContent) {
+    return null
+  }
+
+  if (!text) {
+    return baseContent
+  }
+
+  return {
+    ...baseContent,
+    text,
+  }
+}
+
+function getManualDescendingFirstPageContent(sessionStart: number, dailyPages: number) {
+  if (sessionStart < 604 || sessionStart >= 605) {
+    return null
+  }
+
+  if (dailyPages === 1) {
+    return createPlanSessionContent(
+      { surah: 114, ayah: 1 },
+      { surah: 112, ayah: 4 },
+      "الناس 1 الى الإخلاص 4",
+    )
+  }
+
+  if (dailyPages === 0.5) {
+    if (sessionStart >= 604.5) {
+      return createPlanSessionContent(
+        { surah: 114, ayah: 1 },
+        { surah: 113, ayah: 3 },
+        "الناس 1 الى الفلق 3",
+      )
+    }
+
+    return createPlanSessionContent(
+      { surah: 113, ayah: 4 },
+      { surah: 112, ayah: 4 },
+      "الفلق 4 الى الإخلاص 4",
+    )
+  }
+
+  if (dailyPages === 0.25) {
+    if (sessionStart >= 604.75) {
+      return createPlanSessionContent(
+        { surah: 114, ayah: 1 },
+        { surah: 114, ayah: 6 },
+        "الناس 1 الى الناس 6",
+      )
+    }
+
+    if (sessionStart >= 604.5) {
+      return createPlanSessionContent(
+        { surah: 113, ayah: 1 },
+        { surah: 113, ayah: 3 },
+        "الفلق 1 الى الفلق 3",
+      )
+    }
+
+    if (sessionStart >= 604.25) {
+      return createPlanSessionContent(
+        { surah: 113, ayah: 4 },
+        { surah: 113, ayah: 5 },
+        "الفلق 4 الى الفلق 5",
+      )
+    }
+
+    return createPlanSessionContent(
+      { surah: 112, ayah: 1 },
+      { surah: 112, ayah: 4 },
+      "الإخلاص 1 الى الإخلاص 4",
+    )
+  }
+
+  return null
+}
+
+function getDescendingTopOrderedSessionRange(
+  planStartPage: number,
+  totalPages: number,
+  dailyPages: number,
+  sessionNum: number,
+) {
+  if (dailyPages >= 1) {
+    return null
+  }
+
+  const consumedBefore = (sessionNum - 1) * dailyPages
+  if (consumedBefore < 1) {
+    return null
+  }
+
+  const progressAfterFirstPage = consumedBefore - 1
+  const pageOffset = Math.floor(progressAfterFirstPage)
+  const withinPageOffset = progressAfterFirstPage - pageOffset
+  const currentPage = planStartPage + totalPages - 2 - pageOffset
+
+  if (currentPage < planStartPage || currentPage > 604) {
+    return null
+  }
+
+  const sessionStart = currentPage + withinPageOffset
+  const sessionEnd = Math.min(currentPage + 1, sessionStart + dailyPages)
+
+  return { sessionStart, sessionEnd }
 }
 
 function normalizeDescendingTopBoundaryRef(ref: AyahReference) {
@@ -647,8 +757,21 @@ export function getPlanSessionContent(plan: SessionPlanBounds, sessionNum: numbe
     ? planStartPage + totalPages - sessionNum * dailyPages
     : planStartPage + (sessionNum - 1) * dailyPages
 
+  if (direction === "desc" && !hasExplicitStartVerse) {
+    const topOrderedRange = getDescendingTopOrderedSessionRange(planStartPage, totalPages, dailyPages, sessionNum)
+    if (topOrderedRange) {
+      sessionStart = topOrderedRange.sessionStart
+    }
+  }
+
   sessionStart = Math.max(1, Math.min(sessionStart, 605))
-  const sessionEnd = Math.max(sessionStart, Math.min(sessionStart + dailyPages, 605))
+  let sessionEnd = Math.max(sessionStart, Math.min(sessionStart + dailyPages, 605))
+  if (direction === "desc" && !hasExplicitStartVerse) {
+    const topOrderedRange = getDescendingTopOrderedSessionRange(planStartPage, totalPages, dailyPages, sessionNum)
+    if (topOrderedRange) {
+      sessionEnd = Math.max(sessionStart, Math.min(topOrderedRange.sessionEnd, 605))
+    }
+  }
   const lowerRef = getAyahByPageFloat(sessionStart)
   const upperRef = getInclusiveEndAyah(sessionEnd)
   const totalDays = calculateTotalDays(totalPages, dailyPages)
@@ -663,6 +786,13 @@ export function getPlanSessionContent(plan: SessionPlanBounds, sessionNum: numbe
   }
 
   if (direction === "desc") {
+    const manualFirstPageContent = !hasExplicitStartVerse
+      ? getManualDescendingFirstPageContent(sessionStart, dailyPages)
+      : null
+    if (manualFirstPageContent) {
+      return manualFirstPageContent
+    }
+
     const isFirstSession = sessionNum === 1
     const fromRef = isFirstSession
       ? hasExplicitStartVerse ? explicitStartRef : upperRef
@@ -703,7 +833,7 @@ export function getOffsetContent(
   if (startRef.surah === endRef.surah && startRef.ayah === endRef.ayah) {       
     formattedText = `${startSurahName} ${startRef.ayah}`;
   } else {
-    formattedText = `${startSurahName} ${startRef.ayah} - ${endSurahName} ${endRef.ayah}`;
+    formattedText = `${startSurahName} ${startRef.ayah} الى ${endSurahName} ${endRef.ayah}`;
   }
 
   return { text: formattedText };

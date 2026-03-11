@@ -77,7 +77,7 @@ interface AttendanceRecord {
 
 function formatReadingRange(fromSurah?: string | null, fromVerse?: string | null, toSurah?: string | null, toVerse?: string | null) {
   if (!fromSurah || !fromVerse || !toSurah || !toVerse) return null
-  return `${fromSurah} ${fromVerse} - ${toSurah} ${toVerse}`
+  return `${fromSurah} ${fromVerse} الى ${toSurah} ${toVerse}`
 }
 
 function EvaluationCell({ level, detail }: { level: string | null | undefined, detail?: string | null }) {

@@ -719,8 +719,8 @@ export default function StudentPlansPage() {
       return;
     }
 
-    if (startVerse && !startVerseOptions.includes(parseInt(startVerse, 10))) {
-      setStartVerse("");
+    if (!startVerse || !startVerseOptions.includes(parseInt(startVerse, 10))) {
+      setStartVerse(String(startVerseOptions[0]));
     }
   }, [hasPrevious, nextStartFromPrevious, startNum, startVerse, startVerseOptions]);
 
@@ -741,8 +741,8 @@ export default function StudentPlansPage() {
       return;
     }
 
-    if (endVerse && !endVerseOptions.includes(parseInt(endVerse, 10))) {
-      setEndVerse("");
+    if (!endVerse || !endVerseOptions.includes(parseInt(endVerse, 10))) {
+      setEndVerse(String(endVerseOptions[endVerseOptions.length - 1]));
     }
   }, [endVerse, endVerseOptions]);
 
@@ -945,11 +945,12 @@ export default function StudentPlansPage() {
       {/* نافذة إضافة الخطة */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent
-          className="max-w-md bg-white rounded-2xl p-0 overflow-hidden [&>button]:top-4 [&>button]:right-4 [&>button]:left-auto"
+          showCloseButton={false}
+          className="max-w-md bg-white rounded-2xl p-0 overflow-hidden"
           dir="rtl"
         >
           <DialogHeader className="px-6 py-5 border-b border-[#D4AF37]/30 bg-gradient-to-r from-[#D4AF37]/8 to-transparent">
-            <DialogTitle className="text-lg font-bold text-[#1a2332] flex items-center gap-2 pr-8">
+            <DialogTitle className="flex w-full items-center justify-start gap-2 pl-1 text-left text-lg font-bold text-[#1a2332]">
               <Target className="w-5 h-5 text-[#D4AF37]" />
               إضافة خطة حفظ{selectedStudent ? ` — ${selectedStudent.name}` : ""}
             </DialogTitle>
