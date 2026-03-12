@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
-import { Gamepad2, Grid3x3, Puzzle, Lock, ChevronLeft, Swords, Loader2 } from "lucide-react"
+import { Gamepad2, Grid3x3, Puzzle, Trophy, ChevronLeft, Swords, Loader2 } from "lucide-react"
 
 const games = [
   {
@@ -40,20 +40,20 @@ const games = [
     path: "/competitions/letter-hive/teams",
   },
   {
+    id: "millionaire-game",
+    title: "من سيربح المليون",
+    description: "لعبة ثقافية تعتمد على الإجابة عن أسئلة متدرجة الصعوبة للفوز بمليون",
+    icon: Trophy,
+    available: true,
+    path: "/competitions/millionaire-game",
+  },
+  {
     id: "higher-lower",
     title: "أعلى أو أقل",
     description: "لعبة تحدي تعتمد على تخمين إذا كانت القيمة أعلى أو أقل من السابقة",
     icon: Puzzle,
     available: false,
     path: "/competitions/higher-lower",
-  },
-  {
-    id: "millionaire-game",
-    title: "من سيربح المليون",
-    description: "لعبة ثقافية تعتمد على الإجابة عن أسئلة متدرجة الصعوبة للفوز بمليون",
-    icon: Lock,
-    available: false,
-    path: "/competitions/millionaire-game",
   },
 ]
 

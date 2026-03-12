@@ -81,14 +81,8 @@ export function GlobalAdminsDialog() {
 
       if (error) throw error
 
-      const excludedRoles = new Set(["student", "teacher", "deputy_teacher", "طالب", "معلم", "نائب معلم", "مدير", "admin"])
-      const usersData = (data || []).filter((user) => {
-        if (user.account_number === 2) {
-          return false
-        }
-
-        return !excludedRoles.has(user.role || "")
-      }) as UserEntry[]
+      const excludedRoles = new Set(["student", "teacher", "deputy_teacher", "طالب", "معلم", "نائب معلم"])
+      const usersData = (data || []).filter((user) => !excludedRoles.has(user.role || "")) as UserEntry[]
       setUsers(usersData)
 
       const rolesRes = await fetch("/api/roles")

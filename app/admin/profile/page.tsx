@@ -29,6 +29,7 @@ export default function AdminProfilePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [adminData, setAdminData] = useState<AdminData | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [editedName, setEditedName] = useState("")
   const [editedPhoneNumber, setEditedPhoneNumber] = useState("")
   const [editedIdNumber, setEditedIdNumber] = useState("")
   const [isSaving, setIsSaving] = useState(false)
@@ -68,6 +69,7 @@ export default function AdminProfilePage() {
 
       if (data) {
         setAdminData(data)
+        setEditedName(data.name || "")
         setEditedPhoneNumber(data.phone_number || "")
         setEditedIdNumber(data.id_number || "")
       }
@@ -82,6 +84,12 @@ export default function AdminProfilePage() {
   const handleSave = async () => {
     if (!adminData) return
 
+    const normalizedName = editedName.trim()
+    if (!normalizedName) {
+      await alertDialog("يرجى إدخال الاسم الكامل")
+      return
+    }
+
     setIsSaving(true)
     try {
       const supabase = createClient()
@@ -89,6 +97,7 @@ export default function AdminProfilePage() {
       const { error } = await supabase
         .from("users")
         .update({
+          name: normalizedName,
           phone_number: editedPhoneNumber || null,
           id_number: editedIdNumber || null,
         })
@@ -100,6 +109,7 @@ export default function AdminProfilePage() {
         return
       }
 
+      localStorage.setItem("userName", normalizedName)
       await alertDialog("تم حفظ التعديلات بنجاح")
       setIsEditing(false)
       fetchAdminData()
@@ -112,6 +122,7 @@ export default function AdminProfilePage() {
   }
 
   const handleCancel = () => {
+    setEditedName(adminData?.name || "")
     setEditedPhoneNumber(adminData?.phone_number || "")
     setEditedIdNumber(adminData?.id_number || "")
     setIsEditing(false)
@@ -191,7 +202,16 @@ export default function AdminProfilePage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-[#1a2332]/70">الاسم الكامل</Label>
-                  <div className="p-4 bg-gray-50 rounded-xl text-lg font-bold text-[#1a2332]">{adminData.name}</div>
+                  {isEditing ? (
+                    <Input
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      placeholder="أدخل الاسم الكامل"
+                      className="text-lg font-bold"
+                    />
+                  ) : (
+                    <div className="p-4 bg-gray-50 rounded-xl text-lg font-bold text-[#1a2332]">{adminData.name}</div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-[#1a2332]/70">نوع الحساب</Label>

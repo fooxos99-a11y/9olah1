@@ -1560,7 +1560,7 @@ export function Header() {
                     {
                       icon: Star,
 
-                      label: "قاعدة صور خمن الصورة",
+                      label: "إدارة صور خمن الصورة",
 
                       path: "/admin/guess-images",
                     },
@@ -1568,9 +1568,17 @@ export function Header() {
                     {
                       icon: Zap,
 
-                      label: "قاعدة أسئلة المزاد",
+                      label: "إدارة أسئلة المزاد",
 
                       path: "/admin/auction-questions",
+                    },
+
+                    {
+                      icon: Award,
+
+                      label: "إدارة من سيربح المليون",
+
+                      path: "/admin/millionaire-questions",
                     },
 
                     {
@@ -1584,7 +1592,7 @@ export function Header() {
                     {
                       icon: FileText,
 
-                      label: "قاعدة أسئلة الفئات",
+                      label: "إدارة أسئلة الفئات",
 
                       path: "/admin/questions",
                     },

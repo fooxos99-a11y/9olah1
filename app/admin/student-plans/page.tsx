@@ -1627,13 +1627,6 @@ export default function StudentPlansPage() {
 
                 return (
                   <div className="space-y-3">
-                    <button
-                      onClick={() => setResetDialogCircle(null)}
-                      className="text-xs font-semibold text-red-700"
-                    >
-                      العودة إلى الحلقات
-                    </button>
-
                     {circleStudents.length === 0 ? (
                       <p className="text-sm text-neutral-400 text-center py-10">لا يوجد طلاب في هذه الحلقة</p>
                     ) : (
