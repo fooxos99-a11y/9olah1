@@ -1,14 +1,27 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import {
+  createSignedSessionToken,
+  getClearedSessionCookieOptions,
+  getSessionCookieOptions,
+  getSessionFromCookieHeader,
+  SESSION_COOKIE_NAME,
+} from "@/lib/auth/session"
+
+export async function GET(request: NextRequest) {
+  const session = await getSessionFromCookieHeader(request.headers.get("cookie"))
+
+  if (!session) {
+    return NextResponse.json({ error: "لا توجد جلسة صالحة" }, { status: 401 })
+  }
+
+  return NextResponse.json({ success: true, user: session })
+}
 
 export async function POST(request: NextRequest) {
   try {
-
     const { account_number } = await request.json()
-    console.log("[v0] Login attempt with account number:", account_number)
-    console.log("[v0] Account number type:", typeof account_number)
 
-    // تحقق أن المدخل رقم صحيح موجب فقط
     if (!account_number || typeof account_number !== "string" || !/^[0-9]+$/.test(account_number)) {
       return NextResponse.json({ error: "رقم الحساب يجب أن يكون أرقام فقط" }, { status: 400 })
     }
@@ -17,17 +30,8 @@ export async function POST(request: NextRequest) {
     if (isNaN(accountNum) || accountNum <= 0) {
       return NextResponse.json({ error: "رقم الحساب غير صحيح" }, { status: 400 })
     }
-    console.log("[v0] Converted account number:", accountNum, "type:", typeof accountNum)
 
     const supabase = await createClient()
-
-    const { data: allUsers, error: allUsersError } = await supabase
-      .from("users")
-      .select("account_number, name, role")
-      .limit(10)
-
-    console.log("[v0] All users in database:", allUsers)
-    console.log("[v0] All users error:", allUsersError)
 
     const { data: user, error: userError } = await supabase
       .from("users")
@@ -35,21 +39,33 @@ export async function POST(request: NextRequest) {
       .eq("account_number", accountNum)
       .maybeSingle()
 
-    console.log("[v0] User query result:", { user, userError })
-    console.log("[v0] User query - looking for account_number:", accountNum)
+    if (userError) {
+      return NextResponse.json({ error: "حدث خطأ أثناء التحقق من الحساب" }, { status: 500 })
+    }
 
     if (user) {
-      console.log("[v0] User found in users table:", user.name, user.role)
-      return NextResponse.json({
+      const sessionData = {
+        id: String(user.id),
+        name: user.name,
+        role: user.role,
+        accountNumber: String(user.account_number),
+        halaqah: user.halaqah || "",
+      } as const
+
+      const { token, expiresAt } = await createSignedSessionToken(sessionData)
+      const response = NextResponse.json({
         success: true,
         user: {
-          id: user.id,
+          id: sessionData.id,
           name: user.name,
           role: user.role,
           accountNumber: user.account_number,
           halaqah: user.halaqah,
         },
       })
+
+      response.cookies.set(SESSION_COOKIE_NAME, token, getSessionCookieOptions(expiresAt))
+      return response
     }
 
     const { data: student, error: studentError } = await supabase
@@ -58,26 +74,44 @@ export async function POST(request: NextRequest) {
       .eq("account_number", accountNum)
       .maybeSingle()
 
-    console.log("[v0] Student query result:", { student, studentError })
+    if (studentError) {
+      return NextResponse.json({ error: "حدث خطأ أثناء التحقق من الحساب" }, { status: 500 })
+    }
 
     if (student) {
-      console.log("[v0] Student found in students table:", student.name)
-      return NextResponse.json({
+      const sessionData = {
+        id: String(student.id),
+        name: student.name,
+        role: "student" as const,
+        accountNumber: String(student.account_number),
+        halaqah: student.halaqah || "",
+      }
+
+      const { token, expiresAt } = await createSignedSessionToken(sessionData)
+      const response = NextResponse.json({
         success: true,
         user: {
-          id: student.id,
+          id: sessionData.id,
           name: student.name,
           role: "student",
           accountNumber: student.account_number,
           halaqah: student.halaqah,
         },
       })
+
+      response.cookies.set(SESSION_COOKIE_NAME, token, getSessionCookieOptions(expiresAt))
+      return response
     }
 
-    console.log("[v0] Account number not found in database:", accountNum)
     return NextResponse.json({ error: "رقم الحساب غير صحيح" }, { status: 401 })
   } catch (error) {
     console.error("[v0] Auth error:", error)
     return NextResponse.json({ error: "حدث خطأ أثناء تسجيل الدخول" }, { status: 500 })
   }
+}
+
+export async function DELETE() {
+  const response = NextResponse.json({ success: true })
+  response.cookies.set(SESSION_COOKIE_NAME, "", getClearedSessionCookieOptions())
+  return response
 }

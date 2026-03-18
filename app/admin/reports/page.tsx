@@ -39,8 +39,9 @@ export default function ReportsPage() {
   const [filter, setFilter] = useState<"all" | "unread" | "read" | "archived">("all")
 
   useEffect(() => {
+    if (!authVerified) return
     fetchMessages()
-  }, [])
+  }, [authVerified])
 
   const fetchMessages = async () => {
     try {
@@ -243,11 +244,11 @@ export default function ReportsPage() {
 
           {/* Messages List */}
           {loading ? (
-            <div className="flex justify-center py-12">
+            <div className="flex min-h-[40vh] justify-center py-12">
               <SiteLoader />
             </div>
           ) : filteredMessages.length === 0 ? (
-            <Card className="border-2 border-gray-300">
+            <Card className="min-h-[40vh] border-2 border-gray-300">
               <CardContent className="p-6 sm:p-12 text-center">
                 <Mail className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <p className="text-xl text-gray-600">لا توجد رسائل</p>

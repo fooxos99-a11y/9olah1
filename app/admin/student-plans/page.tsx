@@ -53,10 +53,12 @@ import {
   SURAHS,
   calculateTotalPages,
   calculateTotalDays,
+  getAdjustedPlanPreviewRange,
   getContiguousCompletedJuzRange,
   getJuzBounds,
   getJuzNumbersForPageRange,
   getNextAyahReference,
+  getPendingMasteryJuzs,
   hasScatteredCompletedJuzs,
   getPageFloatForAyah,
   getPlanMemorizedRange,
@@ -287,102 +289,19 @@ function getAdjustedPreviewRange({
   prevEndVerse?: string;
   completedJuzs?: number[];
 }) {
-  let adjustedStartSurahNumber = startSurahNumber;
-  let adjustedStartVerseNumber = startVerseNumber;
-
-  const nextStartFromPrevious = prevStartSurah && prevEndSurah && prevEndVerse
-    ? getNextStartFromPrevious(prevStartSurah, prevEndSurah, prevEndVerse)
-    : null;
-
-  const isStartInsidePreviousRange = nextStartFromPrevious && prevStartSurah && prevEndSurah && prevEndVerse
-    ? isAyahWithinRange(
-        adjustedStartSurahNumber,
-        adjustedStartVerseNumber,
-        parseInt(prevStartSurah, 10),
-        prevStartVerse ? parseInt(prevStartVerse, 10) : 1,
-        parseInt(prevEndSurah, 10),
-        parseInt(prevEndVerse, 10),
-      )
-    : false;
-
-  if (nextStartFromPrevious && isStartInsidePreviousRange) {
-    adjustedStartSurahNumber = nextStartFromPrevious.surahNumber;
-    adjustedStartVerseNumber = nextStartFromPrevious.verseNumber;
-  }
-
-  const selectedStartPage = getPageFloatForAyah(adjustedStartSurahNumber, adjustedStartVerseNumber);
-  const nextSelectedEndAyah = getNextAyahReference(endSurahNumber, endVerseNumber);
-  const selectedEndPage = nextSelectedEndAyah
-    ? getPageFloatForAyah(nextSelectedEndAyah.surah, nextSelectedEndAyah.ayah)
-    : 605;
-  const selectedJuzs = getJuzNumbersForPageRange(selectedStartPage, selectedEndPage, direction);
-  const completedJuzSet = new Set(completedJuzs || []);
-  const leadingCompletedJuzs: number[] = [];
-
-  for (const juzNumber of selectedJuzs) {
-    if (!completedJuzSet.has(juzNumber)) {
-      break;
-    }
-
-    leadingCompletedJuzs.push(juzNumber);
-  }
-
-  if (leadingCompletedJuzs.length > 0 && leadingCompletedJuzs.length < selectedJuzs.length) {
-    const nextJuzNumber = selectedJuzs[leadingCompletedJuzs.length];
-    const nextJuzBounds = getJuzBounds(nextJuzNumber);
-
-    if (nextJuzBounds) {
-      if (direction === "desc") {
-        adjustedStartSurahNumber = nextJuzBounds.endSurahNumber;
-        adjustedStartVerseNumber = nextJuzBounds.endVerseNumber;
-      } else {
-        adjustedStartSurahNumber = nextJuzBounds.startSurahNumber;
-        adjustedStartVerseNumber = nextJuzBounds.startVerseNumber;
-      }
-    }
-  }
-
-  const totalPages = compareAyahRefs(adjustedStartSurahNumber, adjustedStartVerseNumber, endSurahNumber, endVerseNumber) <= 0
-    ? resolvePlanTotalPages({
-        start_surah_number: adjustedStartSurahNumber,
-        start_verse: adjustedStartVerseNumber,
-        end_surah_number: endSurahNumber,
-        end_verse: endVerseNumber,
-        direction,
-        has_previous: Boolean(prevStartSurah && prevEndSurah && prevEndVerse),
-        prev_start_surah: prevStartSurah ? parseInt(prevStartSurah, 10) : null,
-        prev_start_verse: prevStartVerse ? parseInt(prevStartVerse, 10) : null,
-        prev_end_surah: prevEndSurah ? parseInt(prevEndSurah, 10) : null,
-        prev_end_verse: prevEndVerse ? parseInt(prevEndVerse, 10) : null,
-        completed_juzs: completedJuzs,
-      })
-    : 0;
-  const totalDays = totalPages > 0 && dailyPages
-    ? resolvePlanTotalDays({
-        start_surah_number: adjustedStartSurahNumber,
-        start_verse: adjustedStartVerseNumber,
-        end_surah_number: endSurahNumber,
-        end_verse: endVerseNumber,
-        total_pages: totalPages,
-        daily_pages: dailyPages,
-        direction,
-        has_previous: Boolean(prevStartSurah && prevEndSurah && prevEndVerse),
-        prev_start_surah: prevStartSurah ? parseInt(prevStartSurah, 10) : null,
-        prev_start_verse: prevStartVerse ? parseInt(prevStartVerse, 10) : null,
-        prev_end_surah: prevEndSurah ? parseInt(prevEndSurah, 10) : null,
-        prev_end_verse: prevEndVerse ? parseInt(prevEndVerse, 10) : null,
-        completed_juzs: completedJuzs,
-      })
-    : 0;
-
-  return {
-    startSurahNumber: adjustedStartSurahNumber,
-    startVerseNumber: adjustedStartVerseNumber,
+  return getAdjustedPlanPreviewRange({
+    startSurahNumber,
+    startVerseNumber,
     endSurahNumber,
     endVerseNumber,
-    totalPages,
-    totalDays,
-  };
+    dailyPages,
+    direction,
+    prevStartSurah: prevStartSurah ? parseInt(prevStartSurah, 10) : null,
+    prevStartVerse: prevStartVerse ? parseInt(prevStartVerse, 10) : null,
+    prevEndSurah: prevEndSurah ? parseInt(prevEndSurah, 10) : null,
+    prevEndVerse: prevEndVerse ? parseInt(prevEndVerse, 10) : null,
+    completedJuzs,
+  });
 }
 
 function getLockedPreviousRange(student: Student, plan: StudentPlan | null, completedDays: number) {
@@ -872,13 +791,14 @@ export default function StudentPlansPage() {
   const nextStartFromPrevious = hasPrevious && prevStartSurah && prevEndSurah && prevEndVerse
     ? getNextStartFromPrevious(prevStartSurah, prevEndSurah, prevEndVerse)
     : null;
-  const masteryJuzLabel = formatJuzList(selectedStudent?.current_juzs);
+  const pendingMasteryJuzs = getPendingMasteryJuzs(selectedStudent?.current_juzs, selectedStudent?.completed_juzs);
+  const masteryJuzLabel = formatJuzList(pendingMasteryJuzs);
   const hasStoredPreviousMemorization = Boolean(
     (selectedStudent?.completed_juzs?.length || 0) > 0 ||
     (selectedStudent?.memorized_start_surah && selectedStudent?.memorized_end_surah),
   );
   const shouldHidePreviousToggle = hasStoredPreviousMemorization;
-  const isMasteryOnlyStudent = Boolean((selectedStudent?.current_juzs?.length || 0) > 0) && !hasStoredPreviousMemorization;
+  const isMasteryOnlyStudent = pendingMasteryJuzs.length > 0 && !hasStoredPreviousMemorization;
   const completedJuzSet = new Set(selectedStudent?.completed_juzs || []);
   const completedJuzBounds = (selectedStudent?.completed_juzs || [])
     .map((juzNumber) => getJuzBounds(juzNumber))
@@ -1195,89 +1115,75 @@ export default function StudentPlansPage() {
             <div>
               <h1 className="text-2xl font-bold text-[#1a2332]">خطط الطلاب</h1>
             </div>
-            {selectedCircle && (
-              <button
-                onClick={openResetDialog}
-                className="mr-auto rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
-              >
-                إعادة حفظ طالب
-              </button>
-            )}
           </div>
 
-          {/* اختيار الحلقة */}
-          {!selectedCircle ? (
-            <div className="bg-white rounded-2xl border border-[#D4AF37]/40 shadow-sm overflow-hidden">
-              <div className="px-6 py-5 border-b border-[#D4AF37]/40 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center">
-                  <BookOpen className="w-4 h-4 text-[#D4AF37]" />
-                </div>
-                <h2 className="text-base font-bold text-[#1a2332]">
-                  اختر الحلقة
-                </h2>
+          <div className="bg-white rounded-2xl border border-[#D4AF37]/40 shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-[#D4AF37]/40 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center">
+                <BookOpen className="w-4 h-4 text-[#D4AF37]" />
               </div>
-              <div className="divide-y divide-[#D4AF37]/20">
-                {isCirclesLoading ? (
-                  <div className="flex items-center justify-center py-16">
-                    <SiteLoader size="md" />
-                  </div>
-                ) : circles.length === 0 ? (
-                  <div className="flex items-center justify-center py-16 text-neutral-400">
-                    لا توجد حلقات
-                  </div>
-                ) : (
-                  circles.map((circle) => (
-                    <button
-                      key={circle.id}
-                      onClick={() => setSelectedCircle(circle.name)}
-                      className="w-full flex items-center justify-between px-6 py-5 hover:bg-[#D4AF37]/5 transition-colors group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/25 flex items-center justify-center">
-                          <BookOpen className="w-4 h-4 text-[#D4AF37]" />
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-[#1a2332] text-base">
-                            {circle.name}
-                          </p>
-                          <p className="text-xs text-neutral-400 mt-0.5">
-                            {circle.studentCount} طالب
-                          </p>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-neutral-300 group-hover:text-[#D4AF37]" />
-                    </button>
-                  ))
-                )}
+              <div className="flex-1">
+                <h2 className="text-base font-bold text-[#1a2332]">اختر الحلقة</h2>
+                <p className="text-xs text-neutral-400 mt-0.5">اختر الحلقة من القائمة لعرض خطط الطلاب</p>
               </div>
             </div>
-          ) : (
-            /* قائمة الطلاب */
-            <div className="bg-white rounded-2xl border border-[#D4AF37]/40 shadow-sm overflow-hidden">
-              <div className="px-6 py-5 border-b border-[#D4AF37]/40 flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    setSelectedCircle(null);
-                    setStudents([]);
-                  }}
-                  className="p-1.5 rounded-lg hover:bg-[#D4AF37]/10 transition-colors"
+            <div className="px-6 py-5 border-b border-[#D4AF37]/20">
+              {isCirclesLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <SiteLoader size="md" />
+                </div>
+              ) : circles.length === 0 ? (
+                <div className="flex items-center justify-center py-6 text-neutral-400">
+                  لا توجد حلقات
+                </div>
+              ) : (
+                <Select
+                  value={selectedCircle ?? ""}
+                  onValueChange={(value) => setSelectedCircle(value || null)}
                 >
-                  <ChevronRight className="w-4 h-4 text-[#D4AF37]" />
-                </button>
+                  <SelectTrigger className="w-full h-12 flex-row-reverse text-sm text-right">
+                    <SelectValue placeholder="اختر الحلقة" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {circles.map((circle) => (
+                      <SelectItem key={circle.id} value={circle.name}>
+                        {circle.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* قائمة الطلاب */}
+            <div>
+              <div className="px-6 py-5 border-b border-[#D4AF37]/40 flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center">
                   <Users className="w-4 h-4 text-[#D4AF37]" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <h2 className="text-base font-bold text-[#1a2332]">
-                    {selectedCircle}
+                    {selectedCircle || "طلاب الحلقة"}
                   </h2>
                   <p className="text-xs text-neutral-400">
-                    {students.length} طالب
+                    {selectedCircle ? `${students.length} طالب` : "اختر حلقة لعرض الطلاب"}
                   </p>
                 </div>
+                {selectedCircle && (
+                  <button
+                    onClick={openResetDialog}
+                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
+                  >
+                    إعادة حفظ طالب
+                  </button>
+                )}
               </div>
 
-              {isCircleDataLoading ? (
+              {!selectedCircle ? (
+                <div className="flex items-center justify-center py-16 text-neutral-400">
+                  اختر حلقة من القائمة أعلاه لعرض الخطط
+                </div>
+              ) : isCircleDataLoading ? (
                 <div className="flex justify-center py-16">
                   <SiteLoader size="lg" />
                 </div>
@@ -1371,7 +1277,7 @@ export default function StudentPlansPage() {
                 </div>
               )}
             </div>
-          )}
+          </div>
         </div>
       </main>
 
@@ -1796,20 +1702,12 @@ export default function StudentPlansPage() {
                   direction,
                   prevStartSurah,
                   prevStartVerse,
-                  prevStartVerse,
                   prevEndSurah,
                   prevEndVerse,
                   completedJuzs: selectedStudent?.completed_juzs,
                 });
                 const actuallStartSurah = SURAHS.find((s) => s.number === adjustedPreview.startSurahNumber);
-                const actualEndSurah =
-                  direction === "asc"
-                    ? SURAHS.find(
-                        (s) => s.number === Math.max(startNum, endNum),
-                      )
-                    : SURAHS.find(
-                        (s) => s.number === Math.min(startNum, endNum),
-                      );
+                const actualEndSurah = SURAHS.find((s) => s.number === adjustedPreview.endSurahNumber);
                 return (
                   <div className="rounded-xl bg-[#D4AF37]/8 border border-[#D4AF37]/30 p-4 space-y-3">
                     <p className="text-xs font-bold text-[#D4AF37]">

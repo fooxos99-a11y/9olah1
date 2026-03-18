@@ -13,7 +13,7 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@
 import { Badge } from "@/components/ui/badge"
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog"
 import { BookMarked, Plus, Trash2, Target, Users, ChevronDown, Check } from "lucide-react"
-import { SURAHS, calculateTotalDays, calculateTotalPages, getContiguousCompletedJuzRange, getJuzBounds, getJuzNumbersForPageRange, getNextAyahReference, hasScatteredCompletedJuzs, getPageFloatForAyah, getPlanMemorizedRange, getSurahJuzNumbers, resolvePlanTotalDays, resolvePlanTotalPages } from "@/lib/quran-data"
+import { SURAHS, calculateTotalDays, calculateTotalPages, getAdjustedPlanPreviewRange, getContiguousCompletedJuzRange, getJuzBounds, getJuzNumbersForPageRange, getNextAyahReference, getPendingMasteryJuzs, hasScatteredCompletedJuzs, getPageFloatForAyah, getPlanMemorizedRange, getSurahJuzNumbers, resolvePlanTotalDays, resolvePlanTotalPages } from "@/lib/quran-data"
 import { getSaudiDateString } from "@/lib/saudi-time"
 import { formatJuzList } from "@/lib/enrollment-test-utils"
 
@@ -232,99 +232,19 @@ function getAdjustedPreviewRange({
   prevEndVerse?: string
   completedJuzs?: number[]
 }) {
-  let adjustedStartSurahNumber = startSurahNumber
-  let adjustedStartVerseNumber = startVerseNumber
-
-  const nextStartFromPrevious = prevStartSurah && prevEndSurah && prevEndVerse
-    ? getNextStartFromPrevious(prevStartSurah, prevEndSurah, prevEndVerse)
-    : null
-
-  const isStartInsidePreviousRange = nextStartFromPrevious && prevStartSurah && prevEndSurah && prevEndVerse
-    ? isAyahWithinRange(
-        adjustedStartSurahNumber,
-        adjustedStartVerseNumber,
-        parseInt(prevStartSurah, 10),
-        prevStartVerse ? parseInt(prevStartVerse, 10) : 1,
-        parseInt(prevEndSurah, 10),
-        parseInt(prevEndVerse, 10),
-      )
-    : false
-
-  if (nextStartFromPrevious && isStartInsidePreviousRange) {
-    adjustedStartSurahNumber = nextStartFromPrevious.surahNumber
-    adjustedStartVerseNumber = nextStartFromPrevious.verseNumber
-  }
-
-  const selectedStartPage = getPageFloatForAyah(adjustedStartSurahNumber, adjustedStartVerseNumber)
-  const nextSelectedEndAyah = getNextAyahReference(endSurahNumber, endVerseNumber)
-  const selectedEndPage = nextSelectedEndAyah
-    ? getPageFloatForAyah(nextSelectedEndAyah.surah, nextSelectedEndAyah.ayah)
-    : 605
-  const selectedJuzs = getJuzNumbersForPageRange(selectedStartPage, selectedEndPage, direction)
-  const completedJuzSet = new Set(completedJuzs || [])
-  const leadingCompletedJuzs: number[] = []
-
-  for (const juzNumber of selectedJuzs) {
-    if (!completedJuzSet.has(juzNumber)) break
-    leadingCompletedJuzs.push(juzNumber)
-  }
-
-  if (leadingCompletedJuzs.length > 0 && leadingCompletedJuzs.length < selectedJuzs.length) {
-    const nextJuzNumber = selectedJuzs[leadingCompletedJuzs.length]
-    const nextJuzBounds = getJuzBounds(nextJuzNumber)
-
-    if (nextJuzBounds) {
-      if (direction === "desc") {
-        adjustedStartSurahNumber = nextJuzBounds.endSurahNumber
-        adjustedStartVerseNumber = nextJuzBounds.endVerseNumber
-      } else {
-        adjustedStartSurahNumber = nextJuzBounds.startSurahNumber
-        adjustedStartVerseNumber = nextJuzBounds.startVerseNumber
-      }
-    }
-  }
-
-  const totalPages = compareAyahRefs(adjustedStartSurahNumber, adjustedStartVerseNumber, endSurahNumber, endVerseNumber) <= 0
-    ? resolvePlanTotalPages({
-        start_surah_number: adjustedStartSurahNumber,
-        start_verse: adjustedStartVerseNumber,
-        end_surah_number: endSurahNumber,
-        end_verse: endVerseNumber,
-        direction,
-        has_previous: Boolean(prevStartSurah && prevEndSurah && prevEndVerse),
-        prev_start_surah: prevStartSurah ? parseInt(prevStartSurah, 10) : null,
-        prev_start_verse: prevStartVerse ? parseInt(prevStartVerse, 10) : null,
-        prev_end_surah: prevEndSurah ? parseInt(prevEndSurah, 10) : null,
-        prev_end_verse: prevEndVerse ? parseInt(prevEndVerse, 10) : null,
-        completed_juzs: completedJuzs,
-      })
-    : 0
-  const totalDays = totalPages > 0 && dailyPages
-    ? resolvePlanTotalDays({
-        start_surah_number: adjustedStartSurahNumber,
-        start_verse: adjustedStartVerseNumber,
-        end_surah_number: endSurahNumber,
-        end_verse: endVerseNumber,
-        total_pages: totalPages,
-        daily_pages: dailyPages,
-        direction,
-        has_previous: Boolean(prevStartSurah && prevEndSurah && prevEndVerse),
-        prev_start_surah: prevStartSurah ? parseInt(prevStartSurah, 10) : null,
-        prev_start_verse: prevStartVerse ? parseInt(prevStartVerse, 10) : null,
-        prev_end_surah: prevEndSurah ? parseInt(prevEndSurah, 10) : null,
-        prev_end_verse: prevEndVerse ? parseInt(prevEndVerse, 10) : null,
-        completed_juzs: completedJuzs,
-      })
-    : 0
-
-  return {
-    startSurahNumber: adjustedStartSurahNumber,
-    startVerseNumber: adjustedStartVerseNumber,
+  return getAdjustedPlanPreviewRange({
+    startSurahNumber,
+    startVerseNumber,
     endSurahNumber,
     endVerseNumber,
-    totalPages,
-    totalDays,
-  }
+    dailyPages,
+    direction,
+    prevStartSurah: prevStartSurah ? parseInt(prevStartSurah, 10) : null,
+    prevStartVerse: prevStartVerse ? parseInt(prevStartVerse, 10) : null,
+    prevEndSurah: prevEndSurah ? parseInt(prevEndSurah, 10) : null,
+    prevEndVerse: prevEndVerse ? parseInt(prevEndVerse, 10) : null,
+    completedJuzs,
+  })
 }
 
 function getLockedPreviousRange(student: Student, plan: StudentPlan | null, completedDays: number) {
@@ -695,13 +615,14 @@ export default function TeacherStudentPlansPage() {
   const nextStartFromPrevious = hasPrevious && prevStartSurah && prevEndSurah && prevEndVerse
     ? getNextStartFromPrevious(prevStartSurah, prevEndSurah, prevEndVerse)
     : null
-  const masteryJuzLabel = formatJuzList(selectedStudent?.current_juzs)
+  const pendingMasteryJuzs = getPendingMasteryJuzs(selectedStudent?.current_juzs, selectedStudent?.completed_juzs)
+  const masteryJuzLabel = formatJuzList(pendingMasteryJuzs)
   const hasStoredPreviousMemorization = Boolean(
     (selectedStudent?.completed_juzs?.length || 0) > 0 ||
     (selectedStudent?.memorized_start_surah && selectedStudent?.memorized_end_surah),
   )
   const shouldHidePreviousToggle = hasStoredPreviousMemorization
-  const isMasteryOnlyStudent = Boolean((selectedStudent?.current_juzs?.length || 0) > 0) && !hasStoredPreviousMemorization
+  const isMasteryOnlyStudent = pendingMasteryJuzs.length > 0 && !hasStoredPreviousMemorization
   const completedJuzSet = new Set(selectedStudent?.completed_juzs || [])
   const completedJuzBounds = (selectedStudent?.completed_juzs || [])
     .map((juzNumber) => getJuzBounds(juzNumber))
@@ -1436,15 +1357,12 @@ export default function TeacherStudentPlansPage() {
                 direction,
                 prevStartSurah,
                 prevStartVerse,
-                prevStartVerse,
                 prevEndSurah,
                 prevEndVerse,
                 completedJuzs: selectedStudent?.completed_juzs,
               })
               const previewStart = SURAHS.find((surah) => surah.number === adjustedPreview.startSurahNumber)
-              const previewEnd = direction === "asc"
-                ? SURAHS.find((surah) => surah.number === Math.max(parseInt(startSurah), parseInt(endSurah)))
-                : SURAHS.find((surah) => surah.number === Math.min(parseInt(startSurah), parseInt(endSurah)))
+              const previewEnd = SURAHS.find((surah) => surah.number === adjustedPreview.endSurahNumber)
 
               return (
                 <div className="rounded-xl bg-[#D4AF37]/8 border border-[#D4AF37]/30 p-4 space-y-3">

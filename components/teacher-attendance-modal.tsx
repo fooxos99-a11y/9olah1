@@ -174,7 +174,7 @@ export function TeacherAttendanceModal({
   if (isSuccess) {
     return (
       <Dialog open={isOpen} onOpenChange={() => {}}>
-        <DialogContent className="max-w-[95vw] md:max-w-[500px] text-center">
+        <DialogContent showCloseButton={false} className="max-w-[95vw] md:max-w-[500px] text-center">
           <div className="py-8">
             <div className="flex justify-center mb-4">
               <CheckCircle2 className="w-20 h-20 text-green-500" />
@@ -194,7 +194,7 @@ export function TeacherAttendanceModal({
   if (hasCheckedToday) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-[95vw] md:max-w-[500px]" dir="rtl">
+        <DialogContent showCloseButton={false} className="max-w-[95vw] md:max-w-[500px]" dir="rtl">
           <DialogHeader>
             <DialogTitle className="text-2xl text-[#1a2332]">تم التسجيل مسبقاً</DialogTitle>
           </DialogHeader>
@@ -218,7 +218,7 @@ export function TeacherAttendanceModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !isSubmitting && onClose()}>
-      <DialogContent className="max-w-[95vw] md:max-w-[500px]">
+      <DialogContent showCloseButton={false} className="max-w-[95vw] md:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-2xl text-[#1a2332]">تسجيل الحضور</DialogTitle>
           <DialogDescription className="text-base">الرجاء تسجيل حضورك في بداية يوم العمل</DialogDescription>

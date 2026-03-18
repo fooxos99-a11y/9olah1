@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { ensureStudentAccess, ensureTeacherScope, isTeacherRole, requireRoles } from "@/lib/auth/guards"
+import { getAbsenceNotificationTemplates, syncAbsenceNotification } from "@/lib/absence-notifications"
 import {
   applyAttendancePointsAdjustment,
   calculateEvaluationLevelPoints,
@@ -39,13 +41,27 @@ function hasCompleteEvaluation(levels: {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireRoles(request, ["student", "teacher", "deputy_teacher", "admin", "supervisor"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
+    const { session } = auth
     const searchParams = request.nextUrl.searchParams
     const studentId = searchParams.get("student_id")
     const halaqah = searchParams.get("halaqah")
+    const supabase = await createClient()
 
-    // Check if attendance was already saved today for a halaqah
     if (halaqah) {
-      const supabase = await createClient()
+      if (session.role === "student") {
+        return NextResponse.json({ error: "لا يمكنك الوصول إلى حضور الحلقة" }, { status: 403 })
+      }
+
+      const teacherScopeError = ensureTeacherScope(session, halaqah)
+      if (teacherScopeError) {
+        return teacherScopeError
+      }
+
       const todayDate = getKsaDateString()
 
       const { data, error } = await supabase
@@ -66,9 +82,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Student ID is required" }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const studentAccess = await ensureStudentAccess(supabase, session, studentId)
+    if ("response" in studentAccess) {
+      return studentAccess.response
+    }
 
-    // Fetch attendance records for the student
     const { data: attendanceData, error: attendanceError } = await supabase
       .from("attendance_records")
       .select("*")
@@ -99,6 +117,8 @@ export async function GET(request: NextRequest) {
           id: record.id,
           date: record.date,
           status: record.status,
+          notes: record.notes ?? null,
+          is_compensation: !!record.is_compensation,
           hafiz_level: isAbsent ? "not_completed" : (lastEval?.hafiz_level || null),
           tikrar_level: isAbsent ? "not_completed" : (lastEval?.tikrar_level || null),
           samaa_level: isAbsent ? "not_completed" : (lastEval?.samaa_level || null),
@@ -128,6 +148,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireRoles(request, ["teacher", "deputy_teacher", "admin", "supervisor"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
+    const { session } = auth
     const body = await request.json()
     const {
       student_id,
@@ -169,6 +195,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
+    const teacherScopeError = ensureTeacherScope(session, halaqah, teacher_id)
+    if (teacherScopeError) {
+      return teacherScopeError
+    }
+
     const normalizedStatus = status || "present"
     const isPresent = isEvaluatedAttendance(normalizedStatus)
 
@@ -183,6 +214,13 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createClient()
+    const studentAccess = await ensureStudentAccess(supabase, session, student_id)
+    if ("response" in studentAccess) {
+      return studentAccess.response
+    }
+
+    const effectiveTeacherId = isTeacherRole(session.role) ? session.id : teacher_id
+    const absenceTemplates = await getAbsenceNotificationTemplates(supabase)
 
     // Get today's date in YYYY-MM-DD format (Asia/Riyadh timezone)
     const todayDate = getKsaDateString()
@@ -194,21 +232,24 @@ export async function POST(request: NextRequest) {
     console.log("[v0] Adding evaluation for student:", student_id, "on date:", todayDate)
 
     // Check if there's already an attendance record for this student today
-    const { data: existingRecord, error: checkError } = await supabase
+    const { data: existingRecords, error: checkError } = await supabase
       .from("attendance_records")
-      .select("id, status")
+      .select("id, status, is_compensation, created_at")
       .eq("student_id", student_id)
       .eq("date", todayDate)
-      .maybeSingle()
+      .order("created_at", { ascending: true })
 
     if (checkError) {
       console.error("[v0] Error checking existing attendance:", checkError)
       return NextResponse.json({ error: "Failed to check existing attendance" }, { status: 500 })
     }
 
+    const existingRecord = (existingRecords || []).find((record) => !record.is_compensation) || null
+
     let attendanceRecord
     const isUpdate = !!existingRecord
     let previousPoints = 0
+    const previousStatus = existingRecord?.status ?? null
 
     if (existingRecord) {
       console.log("[v0] Attendance already exists for student today, updating record:", existingRecord.id)
@@ -236,7 +277,7 @@ export async function POST(request: NextRequest) {
       const { data: updatedRecord, error: attendanceUpdateError } = await supabase
         .from("attendance_records")
         .update({
-          teacher_id,
+          teacher_id: effectiveTeacherId,
           halaqah,
           status: normalizedStatus,
           notes: notes ?? null,
@@ -274,7 +315,7 @@ export async function POST(request: NextRequest) {
         .from("attendance_records")
         .insert({
           student_id,
-          teacher_id,
+          teacher_id: effectiveTeacherId,
           halaqah,
           status: normalizedStatus,
           date: todayDate,
@@ -306,6 +347,15 @@ export async function POST(request: NextRequest) {
 
       attendanceRecord = newRecord
     }
+
+    await syncAbsenceNotification({
+      supabase,
+      studentId: student_id,
+      date: todayDate,
+      previousStatus,
+      nextStatus: normalizedStatus,
+      templates: absenceTemplates,
+    })
 
     if (!isEvaluatedAttendance(normalizedStatus)) {
       return NextResponse.json({

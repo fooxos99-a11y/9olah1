@@ -3,6 +3,22 @@ import { getSaudiDateString } from './saudi-time';
 // بيانات القرآن الكريم - المصحف الشريف (مصحف المدينة المنورة)
 // كل وجه = صفحة واحدة، المصحف = 604 صفحة
 
+export function formatQuranRange(fromSurah?: string | null, fromVerse?: string | null, toSurah?: string | null, toVerse?: string | null) {
+  if (!fromSurah || !fromVerse || !toSurah || !toVerse) return null
+  return `${fromSurah} ${fromVerse} الى ${toSurah} ${toVerse}`
+}
+
+export function getPendingMasteryJuzs(currentJuzs?: number[] | null, completedJuzs?: number[] | null) {
+  const completedSet = new Set(getNormalizedCompletedJuzs(completedJuzs || []))
+  const normalizedCurrent = Array.isArray(currentJuzs)
+    ? currentJuzs
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value >= 1 && value <= 30)
+    : []
+
+  return Array.from(new Set(normalizedCurrent.filter((juzNumber) => !completedSet.has(juzNumber)))).sort((a, b) => a - b)
+}
+
 export interface Surah {
   number: number
   name: string
@@ -302,6 +318,21 @@ export function getNextAyahReference(surahNumber: number, ayahNumber: number) {
 }
 
 export function getPageFloatForAyah(surahNumber: number, ayahNumber: number) {
+  const surah = SURAHS.find((item) => item.number === surahNumber)
+  if (!surah) {
+    return 0
+  }
+
+  const safeAyahNumber = Math.max(1, Math.min(surah.verseCount, ayahNumber))
+  const isSinglePageSurah = (getSurahEndFloat(surahNumber) - getSurahFloatPos(surahNumber)) <= 1.0001
+
+  if (isSinglePageSurah) {
+    const startFloat = getSurahFloatPos(surahNumber)
+    const endFloat = getSurahEndFloat(surahNumber)
+    const span = Math.max(0.0001, endFloat - startFloat)
+    return startFloat + ((safeAyahNumber - 1) / surah.verseCount) * span
+  }
+
   const page = getPageForAyah(surahNumber, ayahNumber)
   const startReference = PAGE_REFERENCES[page - 1]
   const nextReference = PAGE_REFERENCES[page]
@@ -548,195 +579,175 @@ function getPreviousMemorizedRanges(plan: Pick<SegmentedPlanLike, "has_previous"
   return mergeAyahRanges(ranges)
 }
 
-function getSkippedPlanSegments(plan: SegmentedPlanLike): PlanSegment[] | null {
-  if (!plan.start_surah_number || !plan.end_surah_number) {
-    return null
-  }
-
-  if ((plan.direction || "asc") !== "asc") {
-    return null
-  }
-
-  const selectedRange = normalizeAyahRange({
-    startSurahNumber: Number(plan.start_surah_number),
-    startVerseNumber: Number(plan.start_verse) || 1,
-    endSurahNumber: Number(plan.end_surah_number),
-    endVerseNumber: getEffectiveEndVerse(Number(plan.end_surah_number), plan.end_verse),
-  })
-  const skippedRanges = getPreviousMemorizedRanges(plan)
-
-  if (skippedRanges.length === 0) {
-    return null
-  }
-
-  const segments: PlanSegment[] = []
-  let currentStartSurahNumber = selectedRange.startSurahNumber
-  let currentStartVerseNumber = selectedRange.startVerseNumber
-
-  for (const skippedRange of skippedRanges) {
-    if (
-      compareAyahReferences(
-        skippedRange.endSurahNumber,
-        skippedRange.endVerseNumber,
-        currentStartSurahNumber,
-        currentStartVerseNumber,
-      ) < 0
-    ) {
-      continue
-    }
-
-    if (
-      compareAyahReferences(
-        skippedRange.startSurahNumber,
-        skippedRange.startVerseNumber,
-        selectedRange.endSurahNumber,
-        selectedRange.endVerseNumber,
-      ) > 0
-    ) {
-      break
-    }
-
-    const segmentEnd = getPreviousAyahReference(skippedRange.startSurahNumber, skippedRange.startVerseNumber)
-
-    if (
-      segmentEnd &&
-      compareAyahReferences(
-        currentStartSurahNumber,
-        currentStartVerseNumber,
-        segmentEnd.surah,
-        segmentEnd.ayah,
-      ) <= 0
-    ) {
-      segments.push({
-        startSurahNumber: currentStartSurahNumber,
-        startVerseNumber: currentStartVerseNumber,
-        endSurahNumber: segmentEnd.surah,
-        endVerseNumber: segmentEnd.ayah,
-        totalPages: calculateTotalPages(currentStartSurahNumber, segmentEnd.surah, currentStartVerseNumber, segmentEnd.ayah),
-      })
-    }
-
-    const nextStart = getNextAyahReference(skippedRange.endSurahNumber, skippedRange.endVerseNumber)
-    if (!nextStart) {
-      return segments.length > 0 ? segments : []
-    }
-
-    if (
-      compareAyahReferences(
-        nextStart.surah,
-        nextStart.ayah,
-        selectedRange.endSurahNumber,
-        selectedRange.endVerseNumber,
-      ) > 0
-    ) {
-      return segments.length > 0 ? segments : []
-    }
-
-    currentStartSurahNumber = nextStart.surah
-    currentStartVerseNumber = nextStart.ayah
-  }
-
-  if (
-    compareAyahReferences(
-      currentStartSurahNumber,
-      currentStartVerseNumber,
-      selectedRange.endSurahNumber,
-      selectedRange.endVerseNumber,
-    ) <= 0
-  ) {
-    segments.push({
-      startSurahNumber: currentStartSurahNumber,
-      startVerseNumber: currentStartVerseNumber,
-      endSurahNumber: selectedRange.endSurahNumber,
-      endVerseNumber: selectedRange.endVerseNumber,
-      totalPages: calculateTotalPages(
-        currentStartSurahNumber,
-        selectedRange.endSurahNumber,
-        currentStartVerseNumber,
-        selectedRange.endVerseNumber,
-      ),
-    })
-  }
-
-  return segments.length > 0 ? segments : []
+function getAyahRangeEndExclusive(range: AyahRange) {
+  const nextAyah = getNextAyahReference(range.endSurahNumber, range.endVerseNumber)
+  return nextAyah ? getPageFloatForAyah(nextAyah.surah, nextAyah.ayah) : 605
 }
 
-function getMidSkippedPreviousPlanSegments(plan: SegmentedPlanLike): PlanSegment[] | null {
-  const skippedPlanSegments = getSkippedPlanSegments(plan)
-  if (skippedPlanSegments) {
-    return skippedPlanSegments
+function getAyahRangePageLength(range: AyahRange) {
+  return Math.max(0, getAyahRangeEndExclusive(range) - getPageFloatForAyah(range.startSurahNumber, range.startVerseNumber))
+}
+
+function createPlanSegmentFromRange(range: AyahRange): PlanSegment {
+  return {
+    startSurahNumber: range.startSurahNumber,
+    startVerseNumber: range.startVerseNumber,
+    endSurahNumber: range.endSurahNumber,
+    endVerseNumber: range.endVerseNumber,
+    totalPages: getAyahRangePageLength(range),
+  }
+}
+
+function buildOrderedPlanRanges(plan: SegmentedPlanLike) {
+  if (!plan.start_surah_number || !plan.end_surah_number) {
+    return [] as AyahRange[]
   }
 
-  if (
-    !plan.has_previous ||
-    !plan.start_surah_number ||
-    !plan.end_surah_number ||
-    !plan.prev_start_surah ||
-    !plan.prev_end_surah
-  ) {
-    return null
-  }
-
-  if ((plan.direction || "asc") !== "asc") {
-    return null
-  }
-
+  const direction = plan.direction === "desc" ? "desc" : "asc"
   const startSurahNumber = Number(plan.start_surah_number)
   const startVerseNumber = Number(plan.start_verse) || 1
   const endSurahNumber = Number(plan.end_surah_number)
   const endVerseNumber = getEffectiveEndVerse(endSurahNumber, plan.end_verse)
-  const prevStartSurahNumber = Number(plan.prev_start_surah)
-  const prevStartVerseNumber = Number(plan.prev_start_verse) || 1
-  const prevEndSurahNumber = Number(plan.prev_end_surah)
-  const prevEndVerseNumber = getEffectiveEndVerse(prevEndSurahNumber, plan.prev_end_verse)
+  const orderedRanges: AyahRange[] = []
 
-  if (compareAyahReferences(prevStartSurahNumber, prevStartVerseNumber, prevEndSurahNumber, prevEndVerseNumber) > 0) {
-    return null
+  if (direction === "desc") {
+    if (startSurahNumber < endSurahNumber) {
+      return []
+    }
+
+    for (let surahNumber = startSurahNumber; surahNumber >= endSurahNumber; surahNumber -= 1) {
+      const surah = SURAHS.find((item) => item.number === surahNumber)
+      if (!surah) continue
+
+      const rangeStartVerse = surahNumber === startSurahNumber ? startVerseNumber : 1
+      const rangeEndVerse = surahNumber === endSurahNumber ? endVerseNumber : surah.verseCount
+
+      if (rangeStartVerse > rangeEndVerse) {
+        continue
+      }
+
+      orderedRanges.push({
+        startSurahNumber: surahNumber,
+        startVerseNumber: rangeStartVerse,
+        endSurahNumber: surahNumber,
+        endVerseNumber: rangeEndVerse,
+      })
+    }
+
+    return orderedRanges
   }
 
-  const startsBeforePrevious = compareAyahReferences(startSurahNumber, startVerseNumber, prevStartSurahNumber, prevStartVerseNumber) < 0
-  const endsAfterPrevious = compareAyahReferences(endSurahNumber, endVerseNumber, prevEndSurahNumber, prevEndVerseNumber) > 0
-
-  if (!startsBeforePrevious || !endsAfterPrevious) {
-    return null
+  if (startSurahNumber > endSurahNumber) {
+    return []
   }
 
-  const beforePreviousEnd = getPreviousAyahReference(prevStartSurahNumber, prevStartVerseNumber)
-  const afterPreviousEnd = getNextAyahReference(prevEndSurahNumber, prevEndVerseNumber)
+  for (let surahNumber = startSurahNumber; surahNumber <= endSurahNumber; surahNumber += 1) {
+    const surah = SURAHS.find((item) => item.number === surahNumber)
+    if (!surah) continue
 
-  if (!beforePreviousEnd || !afterPreviousEnd) {
-    return null
-  }
+    const rangeStartVerse = surahNumber === startSurahNumber ? startVerseNumber : 1
+    const rangeEndVerse = surahNumber === endSurahNumber ? endVerseNumber : surah.verseCount
 
-  const segments: PlanSegment[] = []
+    if (rangeStartVerse > rangeEndVerse) {
+      continue
+    }
 
-  if (compareAyahReferences(startSurahNumber, startVerseNumber, beforePreviousEnd.surah, beforePreviousEnd.ayah) <= 0) {
-    segments.push({
-      startSurahNumber,
-      startVerseNumber,
-      endSurahNumber: beforePreviousEnd.surah,
-      endVerseNumber: beforePreviousEnd.ayah,
-      totalPages: calculateTotalPages(startSurahNumber, beforePreviousEnd.surah, startVerseNumber, beforePreviousEnd.ayah),
+    orderedRanges.push({
+      startSurahNumber: surahNumber,
+      startVerseNumber: rangeStartVerse,
+      endSurahNumber: surahNumber,
+      endVerseNumber: rangeEndVerse,
     })
   }
 
-  if (compareAyahReferences(afterPreviousEnd.surah, afterPreviousEnd.ayah, endSurahNumber, endVerseNumber) <= 0) {
-    segments.push({
-      startSurahNumber: afterPreviousEnd.surah,
-      startVerseNumber: afterPreviousEnd.ayah,
-      endSurahNumber,
-      endVerseNumber,
-      totalPages: calculateTotalPages(afterPreviousEnd.surah, endSurahNumber, afterPreviousEnd.ayah, endVerseNumber),
-    })
-  }
-
-  return segments.length > 1 ? segments : null
+  return orderedRanges
 }
 
-function getSegmentedPlanTotalDays(segments: PlanSegment[], dailyPages: number) {
+function subtractAyahRange(range: AyahRange, skippedRange: AyahRange) {
+  if (
+    compareAyahReferences(skippedRange.endSurahNumber, skippedRange.endVerseNumber, range.startSurahNumber, range.startVerseNumber) < 0
+    || compareAyahReferences(skippedRange.startSurahNumber, skippedRange.startVerseNumber, range.endSurahNumber, range.endVerseNumber) > 0
+  ) {
+    return [range]
+  }
+
+  const remainingRanges: AyahRange[] = []
+  const beforeSkippedRangeEnd = getPreviousAyahReference(skippedRange.startSurahNumber, skippedRange.startVerseNumber)
+  if (
+    beforeSkippedRangeEnd
+    && compareAyahReferences(range.startSurahNumber, range.startVerseNumber, beforeSkippedRangeEnd.surah, beforeSkippedRangeEnd.ayah) <= 0
+  ) {
+    remainingRanges.push({
+      startSurahNumber: range.startSurahNumber,
+      startVerseNumber: range.startVerseNumber,
+      endSurahNumber: beforeSkippedRangeEnd.surah,
+      endVerseNumber: beforeSkippedRangeEnd.ayah,
+    })
+  }
+
+  const afterSkippedRangeStart = getNextAyahReference(skippedRange.endSurahNumber, skippedRange.endVerseNumber)
+  if (
+    afterSkippedRangeStart
+    && compareAyahReferences(afterSkippedRangeStart.surah, afterSkippedRangeStart.ayah, range.endSurahNumber, range.endVerseNumber) <= 0
+  ) {
+    remainingRanges.push({
+      startSurahNumber: afterSkippedRangeStart.surah,
+      startVerseNumber: afterSkippedRangeStart.ayah,
+      endSurahNumber: range.endSurahNumber,
+      endVerseNumber: range.endVerseNumber,
+    })
+  }
+
+  return remainingRanges
+}
+
+function getPlanTraversalSegments(plan: SegmentedPlanLike) {
+  const orderedRanges = buildOrderedPlanRanges(plan)
+  if (orderedRanges.length === 0) {
+    return [] as PlanSegment[]
+  }
+
+  const skippedRanges = getPreviousMemorizedRanges(plan)
+  const availableRanges = skippedRanges.length === 0
+    ? orderedRanges
+    : orderedRanges.flatMap((orderedRange) => {
+        let remaining = [orderedRange]
+
+        for (const skippedRange of skippedRanges) {
+          remaining = remaining.flatMap((part) => subtractAyahRange(part, skippedRange))
+          if (remaining.length === 0) {
+            break
+          }
+        }
+
+        return remaining
+      })
+
+  return availableRanges
+    .map(createPlanSegmentFromRange)
+    .filter((segment) => segment.totalPages > 0.0001)
+}
+
+function getPlanTraversalTotalDays(segments: PlanSegment[], dailyPages: number) {
   if (!Number.isFinite(dailyPages) || dailyPages <= 0) return 0
 
-  return segments.reduce((total, segment) => total + calculateTotalDays(segment.totalPages, dailyPages), 0)
+  const memorizedSegments = segments.map((segment) => createMemorizedPageSegment({
+    startSurahNumber: segment.startSurahNumber,
+    startVerseNumber: segment.startVerseNumber,
+    endSurahNumber: segment.endSurahNumber,
+    endVerseNumber: segment.endVerseNumber,
+  }))
+  const totalPages = memorizedSegments.reduce((total, segment) => total + getMemorizedPageSegmentSize(segment), 0)
+  if (totalPages <= 0) {
+    return 0
+  }
+
+  const firstSessionPages = getTraversalFirstSessionPages(memorizedSegments, dailyPages)
+  if (firstSessionPages < dailyPages - 0.0001) {
+    return 1 + calculateTotalDays(Math.max(0, totalPages - firstSessionPages), dailyPages)
+  }
+
+  return calculateTotalDays(totalPages, dailyPages)
 }
 
 function getContiguousAscendingSessionContent(segment: PlanSegment, sessionNum: number, dailyPages: number): PlanSessionContent | null {
@@ -780,10 +791,10 @@ export function resolvePlanTotalPages(plan: {
   prev_end_verse?: number | null
   completed_juzs?: number[] | null
 }) {
-  const segmentedPlan = getMidSkippedPreviousPlanSegments(plan)
-  if (segmentedPlan !== null) {
-    const segmentedTotalPages = segmentedPlan.reduce((total, segment) => total + segment.totalPages, 0)
-    return segmentedTotalPages > 0 ? segmentedTotalPages : Number(plan.total_pages) || 0
+  const traversalSegments = getPlanTraversalSegments(plan)
+  if (traversalSegments.length > 0) {
+    const traversalTotalPages = traversalSegments.reduce((total, segment) => total + segment.totalPages, 0)
+    return traversalTotalPages > 0 ? traversalTotalPages : Number(plan.total_pages) || 0
   }
 
   if (plan.start_surah_number && plan.end_surah_number) {
@@ -818,10 +829,10 @@ export function resolvePlanTotalDays(plan: {
   prev_end_verse?: number | null
   completed_juzs?: number[] | null
 }) {
-  const segmentedPlan = getMidSkippedPreviousPlanSegments(plan)
-  if (segmentedPlan !== null) {
-    const segmentedDays = getSegmentedPlanTotalDays(segmentedPlan, Number(plan.daily_pages) || 0)
-    return segmentedDays > 0 ? segmentedDays : Number(plan.total_days) || 0
+  const traversalSegments = getPlanTraversalSegments(plan)
+  if (traversalSegments.length > 0) {
+    const traversalDays = getPlanTraversalTotalDays(traversalSegments, Number(plan.daily_pages) || 0)
+    return traversalDays > 0 ? traversalDays : Number(plan.total_days) || 0
   }
 
   const resolvedPages = resolvePlanTotalPages(plan)
@@ -838,12 +849,58 @@ export function calculateCompletedPlanPages(
   totalPages: number,
   dailyPages: number,
   completedDays: number,
+  firstSessionPages?: number,
 ): number {
   if (!Number.isFinite(totalPages) || totalPages <= 0) return 0
   if (!Number.isFinite(dailyPages) || dailyPages <= 0) return 0
   if (!Number.isFinite(completedDays) || completedDays <= 0) return 0
 
+  if (Number.isFinite(firstSessionPages) && (firstSessionPages as number) > 0 && (firstSessionPages as number) < dailyPages) {
+    if (completedDays === 1) {
+      return Math.min(totalPages, firstSessionPages as number)
+    }
+
+    return Math.min(totalPages, (firstSessionPages as number) + (completedDays - 1) * dailyPages)
+  }
+
   return Math.min(totalPages, completedDays * dailyPages)
+}
+
+function calculateCompletedPlanPagesForPlan(plan: {
+  total_pages?: number | null
+  daily_pages?: number | null
+  start_surah_number?: number | null
+  start_verse?: number | null
+  end_surah_number?: number | null
+  end_verse?: number | null
+  direction?: "asc" | "desc" | null
+  has_previous?: boolean | null
+  prev_start_surah?: number | null
+  prev_start_verse?: number | null
+  prev_end_surah?: number | null
+  prev_end_verse?: number | null
+  completed_juzs?: number[] | null
+}, completedDays: number) {
+  const traversalSegments = getPlanTraversalSegments(plan)
+  const memorizedSegments = traversalSegments.map((segment) => createMemorizedPageSegment({
+    startSurahNumber: segment.startSurahNumber,
+    startVerseNumber: segment.startVerseNumber,
+    endSurahNumber: segment.endSurahNumber,
+    endVerseNumber: segment.endVerseNumber,
+  }))
+  const totalPages = memorizedSegments.length > 0
+    ? memorizedSegments.reduce((total, segment) => total + getMemorizedPageSegmentSize(segment), 0)
+    : Number(plan.total_pages) || 0
+  const firstSessionPages = memorizedSegments.length > 0
+    ? getTraversalFirstSessionPages(memorizedSegments, Number(plan.daily_pages) || 0)
+    : undefined
+
+  return calculateCompletedPlanPages(
+    totalPages,
+    Number(plan.daily_pages) || 0,
+    completedDays,
+    firstSessionPages,
+  )
 }
 
 export function calculatePreviousMemorizedPages(plan: {
@@ -869,9 +926,41 @@ export function calculatePreviousMemorizedPages(plan: {
   ), 0)
 }
 
+export function resolvePlanReviewPoolPages(plan: {
+  rabt_pages?: number | null
+}, memorizedPoolPages: number): number {
+  const totalMemorizedPool = Math.max(0, Number(memorizedPoolPages) || 0)
+  const rabtPref = Math.max(0, Number(plan.rabt_pages) || 0)
+  const rabtSize = Math.min(rabtPref, totalMemorizedPool)
+  return Math.max(0, totalMemorizedPool - rabtSize)
+}
+
+export function resolvePlanReviewPagesPreference(plan: {
+  muraajaa_pages?: number | null
+  review_distribution_mode?: "fixed" | "weekly" | null
+}, reviewPoolPages: number): number {
+  const availableReviewPages = Math.max(0, Number(reviewPoolPages) || 0)
+  const muraajaaPref = Math.max(0, Number(plan.muraajaa_pages) || 0)
+
+  if (availableReviewPages <= 0 || muraajaaPref <= 0) {
+    return 0
+  }
+
+  if (plan.review_distribution_mode === "weekly") {
+    return Math.min(muraajaaPref, availableReviewPages)
+  }
+
+  return Math.min(muraajaaPref, availableReviewPages)
+}
+
 export function calculateQuranMemorizationProgress(plan: {
   total_pages?: number | null
   daily_pages?: number | null
+  start_surah_number?: number | null
+  start_verse?: number | null
+  end_surah_number?: number | null
+  end_verse?: number | null
+  direction?: "asc" | "desc" | null
   has_previous?: boolean | null
   prev_start_surah?: number | null
   prev_start_verse?: number | null
@@ -879,11 +968,7 @@ export function calculateQuranMemorizationProgress(plan: {
   prev_end_verse?: number | null
   completed_juzs?: number[] | null
 }, completedDays: number) {
-  const currentPlanPages = calculateCompletedPlanPages(
-    Number(plan.total_pages) || 0,
-    Number(plan.daily_pages) || 0,
-    completedDays,
-  )
+  const currentPlanPages = calculateCompletedPlanPagesForPlan(plan, completedDays)
   const previousPages = calculatePreviousMemorizedPages(plan)
   const memorizedPages = Math.min(TOTAL_MUSHAF_PAGES, previousPages + currentPlanPages)
   const progressPercent = Math.max(0, Math.min(100, (memorizedPages / TOTAL_MUSHAF_PAGES) * 100))
@@ -935,55 +1020,29 @@ export function getPlanMemorizedRange(plan: {
   prev_end_verse?: number | null
   start_surah_number?: number | null
   start_verse?: number | null
+  end_surah_number?: number | null
+  end_verse?: number | null
 }, completedDays: number) {
   if (!plan) return null
 
-  const direction = plan.direction === "desc" ? "desc" : "asc"
-  const previousPages = calculatePreviousMemorizedPages(plan)
-  const currentPlanPages = calculateCompletedPlanPages(
-    Number(plan.total_pages) || 0,
-    Number(plan.daily_pages) || 0,
-    completedDays,
-  )
-  const totalMemorizedPages = previousPages + currentPlanPages
+  const currentPlanPages = calculateCompletedPlanPagesForPlan(plan, completedDays)
+  const previousRanges = getPreviousMemorizedRanges(plan)
+  const completedPlanRanges = getCompletedPlanMemorizedRanges(plan as SessionPlanBounds, currentPlanPages)
+  const memorizedSegments = getMergedMemorizedPageSegments([...previousRanges, ...completedPlanRanges])
 
-  if (totalMemorizedPages <= 0) return null
+  if (memorizedSegments.length === 0) return null
 
-  const anchorSurah = plan.has_previous && plan.prev_start_surah
-    ? Number(plan.prev_start_surah)
-    : Number(plan.start_surah_number)
-  const anchorVerse = plan.has_previous && plan.prev_start_surah
-    ? Number(plan.prev_start_verse) || 1
-    : Number(plan.start_verse) || 1
-
-  if (!anchorSurah) return null
-
-  const anchorPage = getPageForAyah(anchorSurah, anchorVerse)
-
-  if (direction === "desc") {
-    const startPage = Math.max(1, anchorPage - totalMemorizedPages + 1)
-    const startRef = getAyahByPageFloat(startPage)
-
-    return {
-      startPage,
-      endPage: anchorPage,
-      startSurahNumber: startRef.surah,
-      startVerseNumber: startRef.ayah,
-      endSurahNumber: anchorSurah,
-      endVerseNumber: anchorVerse,
-    }
-  }
-
-  const endPage = Math.min(604, anchorPage + totalMemorizedPages - 1)
-  const endRef = getInclusiveEndAyah(endPage + 1)
+  const firstSegment = memorizedSegments[0]
+  const lastSegment = memorizedSegments[memorizedSegments.length - 1]
 
   return {
-    startPage: anchorPage,
-    endPage,
-    startSurahNumber: anchorSurah,
-    startVerseNumber: anchorVerse,
-    endSurahNumber: endRef.surah,
-    endVerseNumber: endRef.ayah,
+    startPage: firstSegment.startPage,
+    endPage: Math.max(firstSegment.startPage, lastSegment.endPageExclusive),
+    endPageExclusive: lastSegment.endPageExclusive,
+    startSurahNumber: firstSegment.startSurahNumber,
+    startVerseNumber: firstSegment.startVerseNumber,
+    endSurahNumber: lastSegment.endSurahNumber,
+    endVerseNumber: lastSegment.endVerseNumber,
   }
 }
 
@@ -1204,6 +1263,21 @@ export function getSurahTotalLines(surahNumber: number): number {
 export function getAyahByPageFloat(p: number): { surah: number; ayah: number; customText?: string } {
   if (!Number.isFinite(p) || p <= 1) return { surah: 1, ayah: 1 };
   if (p >= 605) return { surah: 114, ayah: 6 };
+
+  const surahAtPosition = getSurahAtFloatPos(p)
+  if (surahAtPosition && (getSurahEndFloat(surahAtPosition.number) - getSurahFloatPos(surahAtPosition.number)) <= 1.0001) {
+    const startFloat = getSurahFloatPos(surahAtPosition.number)
+    const endFloat = getSurahEndFloat(surahAtPosition.number)
+    const span = Math.max(0.0001, endFloat - startFloat)
+    const normalizedFraction = Math.max(0, Math.min(0.999999, (p - startFloat) / span))
+    const ayah = Math.max(1, Math.min(
+      surahAtPosition.verseCount,
+      1 + Math.floor(normalizedFraction * surahAtPosition.verseCount),
+    ))
+
+    return { surah: surahAtPosition.number, ayah }
+  }
+
   const MathFloorP = Math.floor(p);
   const fraction = p % 1;
   const idx = MathFloorP - 1;
@@ -1519,97 +1593,85 @@ export function getPlanStartPage(plan: Pick<SessionPlanBounds, "start_surah_numb
 
 export function getPlanSessionContent(plan: SessionPlanBounds, sessionNum: number): PlanSessionContent | null {
   const dailyPages = Number(plan.daily_pages) || 0
-  const totalPages = resolvePlanTotalPages(plan)
-  const direction = plan.direction === "desc" ? "desc" : "asc"
-  const hasExplicitStartVerse = plan.start_verse !== null && plan.start_verse !== undefined
-  const hasExplicitEndVerse = plan.end_verse !== null && plan.end_verse !== undefined
-  const segmentedPlan = getMidSkippedPreviousPlanSegments(plan)
+  const traversalSegments = getPlanTraversalSegments(plan)
+  const memorizedSegments = traversalSegments.map((segment) => createMemorizedPageSegment({
+    startSurahNumber: segment.startSurahNumber,
+    startVerseNumber: segment.startVerseNumber,
+    endSurahNumber: segment.endSurahNumber,
+    endVerseNumber: segment.endVerseNumber,
+  }))
+  const totalPages = memorizedSegments.reduce((total, segment) => total + getMemorizedPageSegmentSize(segment), 0)
 
   if (dailyPages <= 0 || totalPages <= 0 || sessionNum <= 0) {
     return null
   }
 
-  if (segmentedPlan && segmentedPlan.length > 0) {
-    let remainingSessionNumber = sessionNum
-
-    for (const segment of segmentedPlan) {
-      const segmentDays = calculateTotalDays(segment.totalPages, dailyPages)
-      if (remainingSessionNumber <= segmentDays) {
-        return getContiguousAscendingSessionContent(segment, remainingSessionNumber, dailyPages)
-      }
-
-      remainingSessionNumber -= segmentDays
-    }
-
+  const sessionWindow = getTraversalSessionWindow(memorizedSegments, totalPages, dailyPages, sessionNum)
+  if (sessionWindow.offset >= totalPages || sessionWindow.size <= 0) {
     return null
   }
 
-  const planStartPage = getPlanStartPage(plan)
-  let sessionStart = direction === "desc"
-    ? planStartPage + totalPages - sessionNum * dailyPages
-    : planStartPage + (sessionNum - 1) * dailyPages
+  return getPlanContentFromTraversalSegments(memorizedSegments, sessionWindow.offset, sessionWindow.size)
+}
 
-  if (direction === "desc" && !hasExplicitStartVerse) {
-    const topOrderedRange = getDescendingTopOrderedSessionRange(planStartPage, totalPages, dailyPages, sessionNum)
-    if (topOrderedRange) {
-      sessionStart = topOrderedRange.sessionStart
+export function getAdjustedPlanPreviewRange(params: {
+  startSurahNumber: number
+  startVerseNumber: number
+  endSurahNumber: number
+  endVerseNumber: number
+  dailyPages?: number
+  direction: "asc" | "desc"
+  prevStartSurah?: number | null
+  prevStartVerse?: number | null
+  prevEndSurah?: number | null
+  prevEndVerse?: number | null
+  completedJuzs?: number[] | null
+}) {
+  const traversalSegments = getPlanTraversalSegments({
+    start_surah_number: params.startSurahNumber,
+    start_verse: params.startVerseNumber,
+    end_surah_number: params.endSurahNumber,
+    end_verse: params.endVerseNumber,
+    direction: params.direction,
+    has_previous: Boolean(params.prevStartSurah && params.prevEndSurah),
+    prev_start_surah: params.prevStartSurah ?? null,
+    prev_start_verse: params.prevStartVerse ?? null,
+    prev_end_surah: params.prevEndSurah ?? null,
+    prev_end_verse: params.prevEndVerse ?? null,
+    completed_juzs: params.completedJuzs ?? [],
+  })
+
+  if (traversalSegments.length === 0) {
+    return {
+      startSurahNumber: params.startSurahNumber,
+      startVerseNumber: params.startVerseNumber,
+      endSurahNumber: params.endSurahNumber,
+      endVerseNumber: params.endVerseNumber,
+      totalPages: 0,
+      totalDays: 0,
     }
   }
 
-  sessionStart = Math.max(1, Math.min(sessionStart, 605))
-  let sessionEnd = Math.max(sessionStart, Math.min(sessionStart + dailyPages, 605))
-  if (direction === "desc" && !hasExplicitStartVerse) {
-    const topOrderedRange = getDescendingTopOrderedSessionRange(planStartPage, totalPages, dailyPages, sessionNum)
-    if (topOrderedRange) {
-      sessionEnd = Math.max(sessionStart, Math.min(topOrderedRange.sessionEnd, 605))
-    }
-  }
-  const lowerRef = getAyahByPageFloat(sessionStart)
-  const upperRef = getInclusiveEndAyah(sessionEnd)
-  const totalDays = calculateTotalDays(totalPages, dailyPages)
-  const explicitStartRef: AyahReference = {
-    surah: plan.start_surah_number,
-    ayah: Number(plan.start_verse) || 1,
-  }
-  const endSurah = SURAHS.find((surah) => surah.number === plan.end_surah_number)
-  const explicitEndRef: AyahReference = {
-    surah: plan.end_surah_number,
-    ayah: Number(plan.end_verse) || endSurah?.verseCount || 1,
-  }
+  const firstSegment = traversalSegments[0]
+  const lastSegment = traversalSegments[traversalSegments.length - 1]
+  const totalPages = traversalSegments.reduce((total, segment) => total + segment.totalPages, 0)
+  const totalDays = totalPages > 0 && (Number(params.dailyPages) || 0) > 0
+    ? getPlanTraversalTotalDays(traversalSegments, Number(params.dailyPages) || 0)
+    : 0
 
-  if (direction === "desc") {
-    const manualFirstPageContent = !hasExplicitStartVerse
-      ? getManualDescendingFirstPageContent(sessionStart, dailyPages)
-      : null
-    if (manualFirstPageContent) {
-      return manualFirstPageContent
-    }
-
-    const isFirstSession = sessionNum === 1
-    const fromRef = isFirstSession
-      ? hasExplicitStartVerse ? explicitStartRef : upperRef
-      : lowerRef
-    const toRef = sessionNum === totalDays && hasExplicitEndVerse
-      ? explicitEndRef
-      : isFirstSession
-        ? normalizeDescendingTopBoundaryRef(lowerRef)
-        : upperRef
-    return formatPlanSessionContent(fromRef, toRef)
+  return {
+    startSurahNumber: firstSegment.startSurahNumber,
+    startVerseNumber: firstSegment.startVerseNumber,
+    endSurahNumber: lastSegment.endSurahNumber,
+    endVerseNumber: lastSegment.endVerseNumber,
+    totalPages,
+    totalDays,
   }
-
-  const fromRef = sessionNum === 1 && hasExplicitStartVerse ? explicitStartRef : lowerRef
-  const toRef = sessionNum === totalDays && hasExplicitEndVerse ? explicitEndRef : upperRef
-  return formatPlanSessionContent(fromRef, toRef)
 }
 
 function createMemorizedPageSegment(range: AyahRange): MemorizedPageSegment {
   const startPage = getPageFloatForAyah(range.startSurahNumber, range.startVerseNumber)
-  const totalPages = calculateTotalPages(
-    range.startSurahNumber,
-    range.endSurahNumber,
-    range.startVerseNumber,
-    range.endVerseNumber,
-  )
+  const totalPages = getAyahRangePageLength(range)
 
   return {
     startPage,
@@ -1652,6 +1714,158 @@ function createPlanContentFromSegmentSlice(
   return formatPlanSessionContent(fromRef, toRef)
 }
 
+function createAyahRangeFromSegmentSlice(
+  segment: MemorizedPageSegment,
+  offsetPages: number,
+  sizePages: number,
+) {
+  const segmentSize = getMemorizedPageSegmentSize(segment)
+  if (segmentSize <= 0 || sizePages <= 0 || offsetPages < 0 || offsetPages >= segmentSize) {
+    return null
+  }
+
+  const sliceStartPage = segment.startPage + offsetPages
+  const sliceEndExclusive = Math.min(segment.endPageExclusive, sliceStartPage + sizePages)
+  if (sliceEndExclusive <= sliceStartPage) {
+    return null
+  }
+
+  const fromRef = offsetPages === 0
+    ? { surah: segment.startSurahNumber, ayah: segment.startVerseNumber }
+    : getAyahByPageFloat(sliceStartPage)
+  const reachesSegmentEnd = sliceEndExclusive >= segment.endPageExclusive - 0.0001
+  const toRef = reachesSegmentEnd
+    ? { surah: segment.endSurahNumber, ayah: segment.endVerseNumber }
+    : getInclusiveEndAyah(sliceEndExclusive)
+
+  return {
+    startSurahNumber: fromRef.surah,
+    startVerseNumber: fromRef.ayah,
+    endSurahNumber: toRef.surah,
+    endVerseNumber: toRef.ayah,
+  }
+}
+
+function getTraversalFirstSessionPages(
+  segments: MemorizedPageSegment[],
+  dailyPages: number,
+) {
+  if (segments.length === 0 || dailyPages <= 0) {
+    return 0
+  }
+
+  const firstPageNumber = Math.floor(segments[0].startPage)
+  const firstPageStart = firstPageNumber
+  const firstPageEnd = firstPageNumber + 1
+  let availableOnFirstPage = 0
+
+  for (const segment of segments) {
+    const overlap = Math.max(
+      0,
+      Math.min(segment.endPageExclusive, firstPageEnd) - Math.max(segment.startPage, firstPageStart),
+    )
+
+    if (overlap > 0) {
+      availableOnFirstPage += overlap
+      continue
+    }
+
+    if (availableOnFirstPage > 0) {
+      break
+    }
+  }
+
+  return Math.min(dailyPages, availableOnFirstPage || dailyPages)
+}
+
+function getTraversalSessionWindow(
+  segments: MemorizedPageSegment[],
+  totalPages: number,
+  dailyPages: number,
+  sessionNum: number,
+) {
+  const firstSessionPages = getTraversalFirstSessionPages(segments, dailyPages)
+
+  if (firstSessionPages > 0 && firstSessionPages < dailyPages - 0.0001) {
+    if (sessionNum === 1) {
+      return {
+        offset: 0,
+        size: Math.min(firstSessionPages, totalPages),
+      }
+    }
+
+    const offset = firstSessionPages + (sessionNum - 2) * dailyPages
+    return {
+      offset,
+      size: Math.min(dailyPages, Math.max(0, totalPages - offset)),
+    }
+  }
+
+  const offset = (sessionNum - 1) * dailyPages
+  return {
+    offset,
+    size: Math.min(dailyPages, Math.max(0, totalPages - offset)),
+  }
+}
+
+function getPlanContentFromTraversalSegments(
+  segments: MemorizedPageSegment[],
+  offsetPages: number,
+  sizePages: number,
+) {
+  if (segments.length === 0 || sizePages <= 0) {
+    return null
+  }
+
+  let remainingOffset = offsetPages
+  let remainingPages = sizePages
+  const parts: PlanSessionContent[] = []
+
+  for (const segment of segments) {
+    const segmentSize = getMemorizedPageSegmentSize(segment)
+    if (segmentSize <= 0) {
+      continue
+    }
+
+    if (remainingOffset >= segmentSize) {
+      remainingOffset -= segmentSize
+      continue
+    }
+
+    const part = createPlanContentFromSegmentSlice(segment, remainingOffset, remainingPages)
+    if (part) {
+      parts.push(part)
+    }
+
+    const availablePages = Math.max(0, segmentSize - remainingOffset)
+    remainingPages -= Math.min(remainingPages, availablePages)
+    remainingOffset = 0
+
+    if (remainingPages <= 0) {
+      break
+    }
+  }
+
+  if (parts.length === 0) {
+    return null
+  }
+
+  if (parts.length === 1) {
+    return parts[0]
+  }
+
+  const firstPart = parts[0]
+  const lastPart = parts[parts.length - 1]
+
+  return {
+    text: `${firstPart.fromSurah} ${firstPart.fromVerse} الى ${lastPart.toSurah} ${lastPart.toVerse}`,
+    fromSurah: firstPart.fromSurah,
+    fromVerse: firstPart.fromVerse,
+    toSurah: lastPart.toSurah,
+    toVerse: lastPart.toVerse,
+  }
+}
+
 function getMergedMemorizedPageSegments(ranges: AyahRange[]) {
   return mergeAyahRanges(ranges).map(createMemorizedPageSegment)
 }
@@ -1664,31 +1878,23 @@ function getCompletedPlanMemorizedRanges(
     return [] as AyahRange[]
   }
 
-  const segmentedPlan = getMidSkippedPreviousPlanSegments(plan)
-  const orderedSegments = segmentedPlan && segmentedPlan.length > 0
-    ? segmentedPlan
-    : [{
-        startSurahNumber: Number(plan.start_surah_number),
-        startVerseNumber: Number(plan.start_verse) || 1,
-        endSurahNumber: Number(plan.end_surah_number),
-        endVerseNumber: getEffectiveEndVerse(Number(plan.end_surah_number), plan.end_verse),
-        totalPages: calculateTotalPages(
-          Number(plan.start_surah_number),
-          Number(plan.end_surah_number),
-          Number(plan.start_verse) || 1,
-          getEffectiveEndVerse(Number(plan.end_surah_number), plan.end_verse),
-        ),
-      }]
+  const orderedSegments = getPlanTraversalSegments(plan)
+  const memorizedSegments = orderedSegments.map((segment) => createMemorizedPageSegment({
+    startSurahNumber: segment.startSurahNumber,
+    startVerseNumber: segment.startVerseNumber,
+    endSurahNumber: segment.endSurahNumber,
+    endVerseNumber: segment.endVerseNumber,
+  }))
 
   let remainingPages = completedPlanPages
   const completedRanges: AyahRange[] = []
 
-  for (const segment of orderedSegments) {
+  for (const segment of memorizedSegments) {
     if (remainingPages <= 0) {
       break
     }
 
-    const segmentTotalPages = Math.max(0, Number(segment.totalPages) || 0)
+    const segmentTotalPages = getMemorizedPageSegmentSize(segment)
     if (segmentTotalPages <= 0) {
       continue
     }
@@ -1704,15 +1910,10 @@ function getCompletedPlanMemorizedRanges(
       continue
     }
 
-    const segmentStartPage = getPageFloatForAyah(segment.startSurahNumber, segment.startVerseNumber)
-    const partialEndRef = getInclusiveEndAyah(segmentStartPage + remainingPages)
-
-    completedRanges.push({
-      startSurahNumber: segment.startSurahNumber,
-      startVerseNumber: segment.startVerseNumber,
-      endSurahNumber: partialEndRef.surah,
-      endVerseNumber: partialEndRef.ayah,
-    })
+    const partialRange = createAyahRangeFromSegmentSlice(segment, 0, remainingPages)
+    if (partialRange) {
+      completedRanges.push(partialRange)
+    }
     remainingPages = 0
   }
 
@@ -1782,7 +1983,7 @@ function getTrailingSegmentContentAtIndex(
   const lastPart = parts[parts.length - 1]
 
   return {
-    text: parts.map((part) => part.text).join("، ثم "),
+    text: `${firstPart.fromSurah} ${firstPart.fromVerse} الى ${lastPart.toSurah} ${lastPart.toVerse}`,
     fromSurah: firstPart.fromSurah,
     fromVerse: firstPart.fromVerse,
     toSurah: lastPart.toSurah,
@@ -1999,7 +2200,7 @@ function getSlidingSegmentContent(
   const lastPart = parts[parts.length - 1]
 
   return {
-    text: parts.map((part) => part.text).join("، ثم "),
+    text: `${firstPart.fromSurah} ${firstPart.fromVerse} الى ${lastPart.toSurah} ${lastPart.toVerse}`,
     fromSurah: firstPart.fromSurah,
     fromVerse: firstPart.fromVerse,
     toSurah: lastPart.toSurah,
@@ -2075,6 +2276,15 @@ export function getPlanSupportSessionContent(plan: SessionPlanBounds, completedD
     resolvePlanTotalPages(plan),
     Number(plan.daily_pages) || 0,
     Math.max(0, activeDayNum - 1),
+    getTraversalFirstSessionPages(
+      getPlanTraversalSegments(plan).map((segment) => createMemorizedPageSegment({
+        startSurahNumber: segment.startSurahNumber,
+        startVerseNumber: segment.startVerseNumber,
+        endSurahNumber: segment.endSurahNumber,
+        endVerseNumber: segment.endVerseNumber,
+      })),
+      Number(plan.daily_pages) || 0,
+    ),
   )
 
   const previousRanges = getPreviousMemorizedRanges(plan)

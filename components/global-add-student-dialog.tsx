@@ -36,9 +36,6 @@ export function GlobalAddStudentDialog() {
 
   // Listen to searchParams to open dialog
   useEffect(() => {
-    // If we are on the dashboard, we don't open the global one, dashboard handles it.
-    if (pathname === "/admin/dashboard") return;
-
     if (searchParams?.get("action") === "add-student") {
       setIsOpen(true)
       fetchCircles()
@@ -111,9 +108,6 @@ export function GlobalAddStudentDialog() {
       }
     }
   }
-
-  // Prevent rendering if on dashboard
-  if (pathname === "/admin/dashboard") return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>

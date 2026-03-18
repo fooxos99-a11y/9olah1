@@ -1,5 +1,14 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import {
+  ensureStudentAccess,
+  getRequestSession,
+  isPrivilegedRole,
+  isTeacherRole,
+  requireRoles,
+  sanitizeStudentForPublic,
+} from "@/lib/auth/guards"
+import { getPendingMasteryJuzs } from "@/lib/quran-data"
 
 function getSupabaseErrorMessage(error: unknown) {
   if (!error) return "حدث خطأ غير معروف";
@@ -22,8 +31,21 @@ function getSupabaseErrorMessage(error: unknown) {
   return String(error);
 }
 
+function normalizeStudentMastery<T extends { current_juzs?: number[] | null; completed_juzs?: number[] | null }>(student: T): T {
+  return {
+    ...student,
+    current_juzs: getPendingMasteryJuzs(student.current_juzs, student.completed_juzs),
+  }
+}
+
 export async function POST(request: Request) {
   try {
+    const auth = await requireRoles(request, ["teacher", "deputy_teacher", "admin", "supervisor"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
+    const { session } = auth
     const supabase = await createClient()
     const body = await request.json()
     const {
@@ -58,6 +80,10 @@ export async function POST(request: Request) {
 
     if (!name || !circle_name) {
       return NextResponse.json({ error: "الاسم واسم الحلقة مطلوبان" }, { status: 400 })
+    }
+
+    if (isTeacherRole(session.role) && (circle_name || "").trim() !== (session.halaqah || "").trim()) {
+      return NextResponse.json({ error: "لا يمكنك إضافة طالب إلى حلقة أخرى" }, { status: 403 })
     }
 
     if (account_number) {
@@ -114,7 +140,7 @@ export async function POST(request: Request) {
     console.log("[v0] Student added to database:", data)
 
     const studentWithCircleName = {
-      ...data,
+      ...normalizeStudentMastery(data),
       circle_name: data.halaqah,
     }
 
@@ -127,12 +153,23 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const auth = await requireRoles(request, ["teacher", "deputy_teacher", "admin", "supervisor"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
+    const { session } = auth
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const studentId = searchParams.get("id")
 
     if (!studentId) {
       return NextResponse.json({ error: "معرف الطالب مطلوب" }, { status: 400 })
+    }
+
+    const studentAccess = await ensureStudentAccess(supabase, session, studentId)
+    if ("response" in studentAccess) {
+      return studentAccess.response
     }
 
     const { error } = await supabase.from("students").delete().eq("id", studentId)
@@ -152,6 +189,7 @@ export async function DELETE(request: Request) {
 export async function GET(request: Request) {
   try {
     const supabase = await createClient()
+    const session = await getRequestSession(request)
     const { searchParams } = new URL(request.url)
     const circleName = searchParams.get("circle")
     const accountNumber = searchParams.get("account_number")
@@ -161,9 +199,23 @@ export async function GET(request: Request) {
     let query = supabase.from("students").select("*")
 
     if (accountNumber) {
+      if (!session) {
+        return NextResponse.json({ error: "يجب تسجيل الدخول أولاً" }, { status: 401 })
+      }
+
+      if (
+        !isPrivilegedRole(session.role) &&
+        !isTeacherRole(session.role) &&
+        String(session.accountNumber) !== String(accountNumber)
+      ) {
+        return NextResponse.json({ error: "لا يمكنك الوصول إلى بيانات طالب آخر" }, { status: 403 })
+      }
+
       query = query.eq("account_number", Number(accountNumber)) as typeof query
     } else if (circleName) {
       query = query.eq("halaqah", circleName.trim()) as typeof query
+    } else if (session && isTeacherRole(session.role)) {
+      query = query.eq("halaqah", (session.halaqah || "").trim()) as typeof query
     }
 
     const { data, error } = await (query as any).order("points", { ascending: false })
@@ -177,10 +229,28 @@ export async function GET(request: Request) {
 
     console.log("[v0] Students fetched from database:", filtered)
 
-    const studentsWithCircleName = filtered.map((student) => ({
-      ...student,
+    let studentsWithCircleName = filtered.map((student) => ({
+      ...normalizeStudentMastery(student),
       circle_name: student.halaqah,
     }))
+
+    if (accountNumber && session && isTeacherRole(session.role)) {
+      studentsWithCircleName = studentsWithCircleName.filter(
+        (student) => (student.halaqah || "").trim() === (session.halaqah || "").trim(),
+      )
+
+      if (studentsWithCircleName.length === 0) {
+        return NextResponse.json({ error: "الطالب لا يتبع حلقتك" }, { status: 403 })
+      }
+    }
+
+    if (circleName && session && isTeacherRole(session.role) && circleName.trim() !== (session.halaqah || "").trim()) {
+      return NextResponse.json({ error: "لا يمكنك الوصول إلى طلاب حلقة أخرى" }, { status: 403 })
+    }
+
+    if (!session || (!accountNumber && !isPrivilegedRole(session.role) && !isTeacherRole(session.role))) {
+      studentsWithCircleName = studentsWithCircleName.map((student) => sanitizeStudentForPublic(student))
+    }
 
     return NextResponse.json(
       { students: studentsWithCircleName },
@@ -199,12 +269,18 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const session = await getRequestSession(request)
+    if (!session) {
+      return NextResponse.json({ error: "يجب تسجيل الدخول أولاً" }, { status: 401 })
+    }
+
     const supabase = await createClient()
     const body = await request.json()
     const {
       id,
       phone_number,
       id_number,
+      account_number,
       points,
       add_points,
       rank,
@@ -225,7 +301,28 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "معرف الطالب مطلوب" }, { status: 400 })
     }
 
+    const studentAccess = await ensureStudentAccess(supabase, session, studentId)
+    if ("response" in studentAccess) {
+      return studentAccess.response
+    }
+
+    if (session.role === "student") {
+      const allowedStudentPatchKeys = new Set(["id"])
+      const bodyKeys = Object.keys(body)
+      const hasOnlyAllowedKeys = bodyKeys.every((key) => allowedStudentPatchKeys.has(key))
+
+      if (!hasOnlyAllowedKeys) {
+        return NextResponse.json({ error: "لا يمكنك تعديل هذه البيانات" }, { status: 403 })
+      }
+
+      return NextResponse.json({ error: "لا يمكنك تعديل النقاط مباشرة" }, { status: 403 })
+    }
+
     if (reset_memorized === true) {
+      if (!isPrivilegedRole(session.role) && !isTeacherRole(session.role)) {
+        return NextResponse.json({ error: "لا يمكنك إعادة ضبط المحفوظ" }, { status: 403 })
+      }
+
       const { error: deletePlanError } = await supabase.from("student_plans").delete().eq("student_id", studentId)
 
       if (deletePlanError) {
@@ -252,13 +349,17 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: "فشل في إعادة ضبط محفوظ الطالب" }, { status: 500 })
       }
 
-      return NextResponse.json({ success: true, student: data }, { status: 200 })
+      return NextResponse.json({ success: true, student: normalizeStudentMastery(data) }, { status: 200 })
     }
 
     const updateData: any = {}
     
     // Check if halaqah changed
     if (halaqah !== undefined) {
+      if (!isPrivilegedRole(session.role) && !isTeacherRole(session.role)) {
+        return NextResponse.json({ error: "لا يمكنك نقل الطالب بين الحلقات" }, { status: 403 })
+      }
+
       updateData.halaqah = halaqah
       const { data: currentStudentHalaqah } = await supabase
         .from("students")
@@ -274,6 +375,46 @@ export async function PATCH(request: Request) {
 
     if (phone_number !== undefined) updateData.phone_number = phone_number
     if (id_number !== undefined) updateData.id_number = id_number
+    if (account_number !== undefined) {
+      const normalizedAccountNumber = account_number === null || account_number === "" ? null : Number(account_number)
+
+      if (normalizedAccountNumber !== null && Number.isNaN(normalizedAccountNumber)) {
+        return NextResponse.json({ error: "رقم الحساب غير صالح" }, { status: 400 })
+      }
+
+      if (normalizedAccountNumber !== null) {
+        const { data: existingStudent, error: existingStudentError } = await supabase
+          .from("students")
+          .select("id")
+          .eq("account_number", normalizedAccountNumber)
+          .neq("id", studentId)
+          .maybeSingle()
+
+        if (existingStudentError) {
+          return NextResponse.json({ error: "فشل في التحقق من رقم الحساب" }, { status: 500 })
+        }
+
+        if (existingStudent) {
+          return NextResponse.json({ error: "رقم الحساب موجود بالفعل" }, { status: 400 })
+        }
+
+        const { data: existingUser, error: existingUserError } = await supabase
+          .from("users")
+          .select("id")
+          .eq("account_number", normalizedAccountNumber)
+          .maybeSingle()
+
+        if (existingUserError) {
+          return NextResponse.json({ error: "فشل في التحقق من رقم الحساب" }, { status: 500 })
+        }
+
+        if (existingUser) {
+          return NextResponse.json({ error: "رقم الحساب موجود بالفعل في النظام" }, { status: 400 })
+        }
+      }
+
+      updateData.account_number = normalizedAccountNumber
+    }
     if (rank !== undefined) updateData.rank = rank
     if (guardian_phone !== undefined) updateData.guardian_phone = guardian_phone
     if (memorized_start_surah !== undefined) updateData.memorized_start_surah = memorized_start_surah
@@ -297,6 +438,7 @@ export async function PATCH(request: Request) {
       const currentStorePoints = currentStudent?.store_points || 0
       const newPoints = currentPoints + add_points
       const newStorePoints = currentStorePoints + add_points
+
       updateData.points = newPoints
       updateData.store_points = newStorePoints
       console.log(`[v0] Adding points - Current: ${currentPoints}, Add: ${add_points}, New: ${newPoints}, Store: ${currentStorePoints} -> ${newStorePoints}`)
@@ -311,7 +453,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "فشل في تحديث الطالب" }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, student: data }, { status: 200 })
+    return NextResponse.json({ success: true, student: normalizeStudentMastery(data) }, { status: 200 })
   } catch (error) {
     console.error("[v0] Error in PATCH /api/students:", error)
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 })

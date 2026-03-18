@@ -1,9 +1,16 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import { ensureStudentAccess, ensureTeacherScope, isTeacherRole, requireRoles } from "@/lib/auth/guards"
 
 // POST /api/compensation
 export async function POST(request: Request) {
   try {
+    const auth = await requireRoles(request, ["teacher", "deputy_teacher", "admin", "supervisor"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
+    const { session } = auth
     const supabase = await createClient()
     const {
       student_id,
@@ -21,45 +28,48 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // 1. تحقق إذا كان يوجد سجل غياب أو مستأذن لهذا اليوم
-    const { data: existingRecord } = await supabase
+    const teacherScopeError = ensureTeacherScope(session, halaqah, teacher_id)
+    if (teacherScopeError) {
+      return teacherScopeError
+    }
+
+    const studentAccess = await ensureStudentAccess(supabase, session, student_id)
+    if ("response" in studentAccess) {
+      return studentAccess.response
+    }
+
+    const effectiveTeacherId = isTeacherRole(session.role) ? session.id : teacher_id
+
+    const compensationNote = compensated_content ? `نجح بتعويض: ${compensated_content}` : "نجح بتعويض"
+
+    const { data: existingCompensation } = await supabase
       .from("attendance_records")
       .select("id")
       .eq("student_id", student_id)
       .eq("date", date)
+      .eq("is_compensation", true)
       .maybeSingle()
 
-    let recordId;
-    if (existingRecord) {
-      // تحديث إلى حاضر
-      await supabase
-        .from("attendance_records")
-        .update({
-          status: "present",
-          is_compensation: true,
-          notes: compensated_content ? `تم تعويض الحفظ: ${compensated_content}` : "تم تعويض الحفظ",
-        })
-        .eq("id", existingRecord.id)
-      recordId = existingRecord.id
-    } else {
-      // إدخال جديد
-      const { data: newRecord, error: insertError } = await supabase
-        .from("attendance_records")
-        .insert({
-          student_id,
-          teacher_id,
-          halaqah,
-          date,
-          status: "present",
-          is_compensation: true,
-          notes: compensated_content ? `تم تعويض الحفظ: ${compensated_content}` : "تم تعويض الحفظ",
-        })
-        .select("id")
-        .single()
-      
-      if (insertError) throw insertError
-      recordId = newRecord.id
+    if (existingCompensation) {
+      return NextResponse.json({ error: "تم تسجيل هذا التعويض مسبقًا" }, { status: 409 })
     }
+
+    const { data: newRecord, error: insertError } = await supabase
+      .from("attendance_records")
+      .insert({
+        student_id,
+        teacher_id: effectiveTeacherId,
+        halaqah,
+        date,
+        status: "present",
+        is_compensation: true,
+        notes: compensationNote,
+      })
+      .select("id")
+      .single()
+
+    if (insertError) throw insertError
+    const recordId = newRecord.id
 
     // 2. تثبيت تقييم التعويض مع نفس النطاق الحفظي حتى يظهر في الملف الشخصي
     await supabase.from("evaluations").delete().eq("attendance_record_id", recordId)
@@ -80,21 +90,21 @@ export async function POST(request: Request) {
       throw evaluationError
     }
 
-    // 3. إضافة 10 نقاط للطالب
+    // 3. إضافة 5 نقاط للطالب
     const { data: studentData } = await supabase
       .from("students")
       .select("points, store_points")
       .eq("id", student_id)
       .single()
 
-    const newPoints = (studentData?.points || 0) + 10
-    const newStorePoints = (studentData?.store_points || 0) + 10
+    const newPoints = (studentData?.points || 0) + 5
+    const newStorePoints = (studentData?.store_points || 0) + 5
     await supabase
       .from("students")
       .update({ points: newPoints, store_points: newStorePoints })
       .eq("id", student_id)
 
-    return NextResponse.json({ success: true, pointsAdded: 10, newPoints })
+    return NextResponse.json({ success: true, newPoints })
   } catch (error: any) {
     console.error("[compensation error]", error)
     return NextResponse.json({ error: error.message }, { status: 500 })

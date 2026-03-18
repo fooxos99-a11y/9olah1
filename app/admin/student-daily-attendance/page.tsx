@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Calendar } from "lucide-react"
 import { useAdminAuth } from "@/hooks/use-admin-auth"
 import { SiteLoader } from "@/components/ui/site-loader"
+import { formatQuranRange } from "@/lib/quran-data"
 import { isNonEvaluatedAttendance, translateAttendanceStatus } from "@/lib/student-attendance"
 
 function translateLevel(level: string | null | undefined) {
@@ -76,8 +77,7 @@ interface AttendanceRecord {
 }
 
 function formatReadingRange(fromSurah?: string | null, fromVerse?: string | null, toSurah?: string | null, toVerse?: string | null) {
-  if (!fromSurah || !fromVerse || !toSurah || !toVerse) return null
-  return `${fromSurah} ${fromVerse} الى ${toSurah} ${toVerse}`
+  return formatQuranRange(fromSurah, fromVerse, toSurah, toVerse)
 }
 
 function EvaluationCell({ level, detail }: { level: string | null | undefined, detail?: string | null }) {

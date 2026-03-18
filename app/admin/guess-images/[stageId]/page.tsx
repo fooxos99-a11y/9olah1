@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SiteLoader } from "@/components/ui/site-loader";
 import { Plus, Pencil, Trash2, Upload, ImageIcon } from "lucide-react";
 import { useAdminAuth } from "@/hooks/use-admin-auth"
 
@@ -23,7 +24,15 @@ type Stage = {
 };
 
 export default function GuessImagesByStage() {
-  useAdminAuth();
+  const { isLoading: authLoading, isVerified: authVerified } = useAdminAuth("إدارة الألعاب")
+
+  if (authLoading || !authVerified) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#fafaf9]">
+        <SiteLoader size="md" />
+      </div>
+    )
+  }
 
   const router = useRouter();
   const params = useParams();

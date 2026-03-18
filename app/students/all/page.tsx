@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import { Award, Calendar, Diamond, Star, Zap, Crown, MonitorPlay, X } from "lucide-react"
 import { applyCardEffect } from "@/lib/card-effects"
+import { getLockedLeaderboardTheme, isLockedLeaderboardRank } from "@/lib/leaderboard-rank-theme"
 
 interface Student {
   id: string
@@ -498,15 +499,15 @@ export default function AllStudentsPage() {
             <div className="max-w-5xl mx-auto">
               <div className="grid grid-cols-1 gap-2 md:gap-3">
                 {allStudents.map((student, index) => {
-                  const themeColors = getThemeColors(student.preferred_theme)
+                  const isLockedRank = isLockedLeaderboardRank(index)
+                  const themeColors = isLockedRank ? getLockedLeaderboardTheme(index) : getThemeColors(student.preferred_theme)
                   const cardEffect = applyCardEffect(
-                    student.active_effect,
+                    isLockedRank ? null : student.active_effect,
                     "group relative rounded-2xl md:rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 hover:border-opacity-70",
                   )
-                  const isPremiumTheme = ["dawn", "galaxy", "sunset_gold", "ocean_deep"].includes(
+                  const isPremiumTheme = !isLockedRank && ["dawn", "galaxy", "sunset_gold", "ocean_deep"].includes(
                     student.preferred_theme || "",
                   )
-
                   return (
                     <div key={student.id}>
                       <div
@@ -537,6 +538,17 @@ export default function AllStudentsPage() {
 
                         {isPremiumTheme && <ThemeDecorations theme={student.preferred_theme} />}
 
+                        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                          <div
+                            className="absolute -right-8 top-5 h-28 w-28 rounded-full blur-3xl"
+                            style={{ backgroundColor: `${themeColors.primary}22` }}
+                          />
+                          <div
+                            className="absolute -left-10 bottom-0 h-24 w-24 rounded-full blur-3xl"
+                            style={{ backgroundColor: `${themeColors.secondary}18` }}
+                          />
+                        </div>
+
                         <div
                           className="absolute top-0 left-0 w-full h-1.5 md:h-2"
                           style={{
@@ -546,76 +558,54 @@ export default function AllStudentsPage() {
                           }}
                         />
 
-                        <div className="p-3 md:p-6 flex items-center gap-3 md:gap-6 relative z-10">
-                          <div className="relative flex-shrink-0">
-                            <svg
-                              width="45"
-                              height="52"
-                              viewBox="0 0 80 92"
-                              className="md:w-[60px] md:h-[70px] group-hover:scale-110 transition-transform duration-300"
+                        <div className="relative z-10 grid gap-4 p-4 md:grid-cols-[84px_minmax(0,1fr)_132px] md:items-center md:gap-5 md:p-6">
+                          <div className="flex items-center justify-center md:justify-start">
+                            <div
+                              className="relative flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_12px_28px_-18px_rgba(0,0,0,0.35)] transition-transform duration-300 group-hover:scale-105 md:h-16 md:w-16"
+                              style={{
+                                background: `radial-gradient(circle at 30% 30%, ${themeColors.secondary}, ${themeColors.primary})`,
+                                borderColor: `${themeColors.tertiary}66`,
+                              }}
                             >
-                              <defs>
-                                <linearGradient id={`grad-${student.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                                  <stop offset="0%" stopColor={themeColors.primary} />
-                                  <stop offset="50%" stopColor={themeColors.secondary} />
-                                  <stop offset="100%" stopColor={themeColors.tertiary} />
-                                </linearGradient>
-                              </defs>
-                              <path
-                                d="M40 2 L75 23.5 L75 68.5 L40 90 L5 68.5 L5 23.5 Z"
-                                fill={`url(#grad-${student.id})`}
-                                stroke={themeColors.tertiary}
-                                strokeWidth="2"
-                              />
-                              <text
-                                x="40"
-                                y="55"
-                                textAnchor="middle"
-                                fill="white"
-                                fontSize="32"
-                                fontWeight="bold"
-                                fontFamily="system-ui"
-                              >
-                                {index + 1}
-                              </text>
-                            </svg>
+                              <div className="absolute inset-[4px] rounded-full border border-white/25" />
+                              <div className="absolute h-2 w-2 rounded-full bg-white/30 top-2.5 right-2.5" />
+                              <div className="text-center text-white">
+                                <div className="text-xl font-black leading-none md:text-2xl">{index + 1}</div>
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-center gap-2 md:gap-3 mb-1 md:mb-2">
+                          <div className="min-w-0 text-center md:text-right">
+                            <div className="flex items-center justify-center gap-2 md:justify-start md:gap-3">
                               <h3
-                                className="text-lg md:text-2xl font-bold transition-colors duration-300 text-[#023232] group-hover:text-[#1a3a3a]"
+                                className="truncate text-xl font-black tracking-tight text-[#12312f] transition-colors duration-300 group-hover:text-[#1f4b47] md:text-3xl"
                                 style={{ fontFamily: getFontFamily(student.font_family) }}
                               >
                                 {student.name}
                               </h3>
                               {getBadgeIcon(student.id, studentBadges) && (
-                                <div className="flex-shrink-0 scale-75 md:scale-100">
+                                <div className="flex-shrink-0 scale-90 md:scale-100">
                                   {getBadgeIcon(student.id, studentBadges)}
                                 </div>
                               )}
                             </div>
-                            <div className="flex flex-wrap gap-1 md:gap-2 justify-center mt-1 md:mt-2">
+
+                            <div className="mt-3 flex flex-wrap justify-center gap-1.5 md:justify-start md:gap-2">
                               {student.badges?.map((badge, idx) => (
-                                <div key={idx} className="scale-75 md:scale-100">
+                                <div key={idx} className="scale-90 md:scale-100">
                                   {renderBadge(badge)}
                                 </div>
                               ))}
                             </div>
                           </div>
 
-                          <div className="relative">
+                          <div className="flex justify-center md:justify-end">
                             <div
-                              className="flex flex-col items-center rounded-xl md:rounded-2xl px-3 py-2 md:px-6 md:py-3 shadow-inner bg-white border-2 md:border-4"
-                              style={{
-                                borderColor: themeColors.primary,
-                              }}
+                              className="min-w-[104px] rounded-[22px] border bg-white/90 px-4 py-3 text-center shadow-[0_18px_40px_-24px_rgba(0,0,0,0.35)] backdrop-blur"
+                              style={{ borderColor: `${themeColors.primary}88` }}
                             >
-                              <div className="text-xl md:text-3xl font-bold leading-none text-[#023232]">
+                              <div className="text-2xl font-black leading-none text-[#12312f] md:text-3xl">
                                 {student.points || 0}
-                              </div>
-                              <div className="text-[10px] md:text-xs font-bold mt-0.5 md:mt-1 tracking-wide text-gray-600">
-                                نقطة
                               </div>
                             </div>
                           </div>

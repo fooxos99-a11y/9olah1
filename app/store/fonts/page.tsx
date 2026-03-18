@@ -69,10 +69,10 @@ export default function FontsPage() {
   const fetchStudentData = async () => {
     try {
       const accountNumber = localStorage.getItem("accountNumber")
-      const response = await fetch(`/api/students`)
+      const response = await fetch(`/api/students?account_number=${accountNumber}`)
       const data = await response.json()
 
-      const student = data.students?.find((s: any) => s.account_number === Number(accountNumber))
+      const student = data.students?.[0]
 
       if (student) {
         setStudentId(student.id)

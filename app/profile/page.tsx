@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { User, Trophy, Award, Calendar, Star, BarChart3, Medal, Gem, Flame, Zap, Crown, Heart, BookMarked, CheckCircle2, Clock, BookOpen, Library, Check, PlayCircle, Lock } from "lucide-react"
-import { getActivePlanDayNumber, getDisplayCompletedDays, getJuzCoverageFromRange, getJuzProgressDetailsFromRange, getPlanMemorizedRange, getPlanSessionContent, getPlanSupportSessionContent, getStoredMemorizedRange, hasScatteredCompletedJuzs, resolvePlanTotalDays, resolvePlanTotalPages } from "@/lib/quran-data"
+import { SURAHS, formatQuranRange, getActivePlanDayNumber, getAdjustedPlanPreviewRange, getDisplayCompletedDays, getJuzCoverageFromRange, getJuzProgressDetailsFromRange, getPlanMemorizedRange, getPlanSessionContent, getPlanSupportSessionContent, getStoredMemorizedRange, hasScatteredCompletedJuzs, resolvePlanTotalDays, resolvePlanTotalPages } from "@/lib/quran-data"
 import { Button } from "@/components/ui/button"
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog"
 import { ThemeSwitcher } from "@/components/theme-switcher"
@@ -19,6 +19,7 @@ import { BadgeSelector } from "@/components/badge-selector"
 import { FontSelector } from "@/components/font-selector"
 import { SiteLoader } from "@/components/ui/site-loader"
 import { isEvaluatedAttendance, translateAttendanceStatus } from "@/lib/student-attendance"
+import { useVerifiedRoleAccess } from "@/hooks/use-verified-role-access"
 
 interface StudentData {
   id: string
@@ -42,6 +43,8 @@ interface AttendanceRecord {
   id: string
   date: string
   status: string
+  notes?: string | null
+  is_compensation?: boolean
   hafiz_level: string | null
   tikrar_level: string | null
   samaa_level: string | null
@@ -76,6 +79,7 @@ interface RankingData {
 }
 
 function ProfilePage() {
+  const { isLoading: authLoading, isAuthorized, user } = useVerifiedRoleAccess(["student"])
   const [studentData, setStudentData] = useState<StudentData | null>(null)
   // تحديث السجلات يدويًا
   const handleRefreshRecords = () => {
@@ -110,14 +114,9 @@ function ProfilePage() {
   const [themeUpdateTrigger, setThemeUpdateTrigger] = useState(0)
 
   useEffect(() => {
-    const loggedIn = localStorage.getItem("isLoggedIn") === "true"
-    const userRole = localStorage.getItem("userRole")
-    if (!loggedIn || userRole !== "student") {
-      router.push("/login")
-    } else {
-      fetchStudentData()
-    }
-  }, [])
+    if (!user) return
+    void fetchStudentData(user.accountNumber)
+  }, [user])
 
   useEffect(() => {
     const handleThemeChanged = () => {
@@ -153,10 +152,8 @@ function ProfilePage() {
     }
   }, [searchParams])
 
-  const fetchStudentData = async () => {
+  const fetchStudentData = async (accountNumber: string) => {
     try {
-      const accountNumber = localStorage.getItem("accountNumber")
-      if (!accountNumber) { router.push("/login"); return }
       console.log("[v0] Fetching student data for account:", accountNumber)
 
       const response = await fetch(`/api/students?account_number=${accountNumber}`, { cache: "no-store" })
@@ -234,6 +231,21 @@ function ProfilePage() {
       // منح إنجاز تلقائي عند اكتمال الخطة 100%
       if ((data.progressPercent ?? 0) >= 100 && data.plan) {
         const plan = data.plan
+        const adjustedPlanPreview = getAdjustedPlanPreviewRange({
+          startSurahNumber: plan.start_surah_number,
+          startVerseNumber: Number(plan.start_verse) || 1,
+          endSurahNumber: plan.end_surah_number,
+          endVerseNumber: Number(plan.end_verse) || SURAHS.find((surah) => surah.number === plan.end_surah_number)?.verseCount || 1,
+          dailyPages: Number(plan.daily_pages) || 0,
+          direction: (plan.direction as "asc" | "desc") || "asc",
+          prevStartSurah: plan.prev_start_surah,
+          prevStartVerse: plan.prev_start_verse,
+          prevEndSurah: plan.prev_end_surah,
+          prevEndVerse: plan.prev_end_verse,
+          completedJuzs: plan.completed_juzs || studentData?.completed_juzs || [],
+        })
+        const adjustedStartSurahName = SURAHS.find((surah) => surah.number === adjustedPlanPreview.startSurahNumber)?.name || plan.start_surah_name
+        const adjustedEndSurahName = SURAHS.find((surah) => surah.number === adjustedPlanPreview.endSurahNumber)?.name || plan.end_surah_name
         const descKey = `plan_${plan.id}`
         const achRes = await fetch(`/api/achievements?student_id=${studentId}`)
         if (achRes.ok) {
@@ -245,7 +257,7 @@ function ProfilePage() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 student_id: studentId,
-                title: `إنجاز خطة (${((plan.direction as "asc" | "desc") || "asc") === "asc" ? plan.start_surah_name : plan.end_surah_name} إلى ${((plan.direction as "asc" | "desc") || "asc") === "asc" ? plan.end_surah_name : plan.start_surah_name})`,
+                title: `إنجاز خطة (${adjustedStartSurahName} إلى ${adjustedEndSurahName})`,
                 category: "خطة حفظ",
                 date: new Date().toISOString().split("T")[0],
                 description: descKey,
@@ -299,17 +311,25 @@ function ProfilePage() {
 
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
+      try {
+        await fetch("/api/auth", { method: "DELETE" })
+      } catch {}
+
       localStorage.clear()
       router.push("/login")
     }
   }
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <SiteLoader size="lg" />
       </div>
     )
+  }
+
+  if (!isAuthorized) {
+    return null
   }
 
   if (!studentData) {
@@ -343,14 +363,12 @@ function ProfilePage() {
   }
 
   function formatReadingRange(fromSurah?: string | null, fromVerse?: string | null, toSurah?: string | null, toVerse?: string | null) {
-    if (!fromSurah || !fromVerse || !toSurah || !toVerse) return null
-    return `من سورة ${fromSurah} آية ${fromVerse} إلى سورة ${toSurah} آية ${toVerse}`
+    return formatQuranRange(fromSurah, fromVerse, toSurah, toVerse)
   }
 
   function formatPlanSessionRange(fromSurah?: string | null, fromVerse?: string | null, toSurah?: string | null, toVerse?: string | null, fallbackText?: string | null) {
     if (fallbackText?.trim()) return fallbackText
-    if (!fromSurah || !fromVerse || !toSurah || !toVerse) return "-"
-    return `من سورة ${fromSurah} آية ${fromVerse} إلى سورة ${toSurah} آية ${toVerse}`
+    return formatQuranRange(fromSurah, fromVerse, toSurah, toVerse) || "-"
   }
 
   const normalizedPlanData = planData
@@ -553,6 +571,11 @@ function ProfilePage() {
                                 <span className="text-lg font-extrabold text-[#1a2332] tracking-wide">
                                   {new Date(record.date).toLocaleDateString("ar-SA")}
                                 </span>
+                                {record.is_compensation && (
+                                  <span className="mr-2 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
+                                    نجح بتعويض
+                                  </span>
+                                )}
                               </div>
                               <Badge
                                 className={
@@ -568,6 +591,11 @@ function ProfilePage() {
                                 {translateAttendanceStatus(record.status)}
                               </Badge>
                             </div>
+                            {record.notes && (
+                              <div className="rounded-xl bg-[#faf7f0] px-3 py-2 text-sm font-medium text-[#7a6743] border border-[#d8a355]/15">
+                                {record.notes}
+                              </div>
+                            )}
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 text-center">
                               <div className="flex flex-col">
                                 <span className="text-base font-bold text-[#c99347] mb-1">الحفظ</span>
@@ -631,9 +659,21 @@ function ProfilePage() {
                   const daily = planData.daily_pages as number
                   const totalDays = resolvePlanTotalDays(planData)
                   const totalPages = resolvePlanTotalPages(planData)
-                  const planDirection = (planData.direction as "asc" | "desc") || "asc"
-                  const planFromSurah = planDirection === "asc" ? planData.start_surah_name : planData.end_surah_name
-                  const planToSurah = planDirection === "asc" ? planData.end_surah_name : planData.start_surah_name
+                  const adjustedPlanPreview = getAdjustedPlanPreviewRange({
+                    startSurahNumber: planData.start_surah_number,
+                    startVerseNumber: Number(planData.start_verse) || 1,
+                    endSurahNumber: planData.end_surah_number,
+                    endVerseNumber: Number(planData.end_verse) || SURAHS.find((surah) => surah.number === planData.end_surah_number)?.verseCount || 1,
+                    dailyPages: Number(planData.daily_pages) || 0,
+                    direction: (planData.direction as "asc" | "desc") || "asc",
+                    prevStartSurah: planData.prev_start_surah,
+                    prevStartVerse: planData.prev_start_verse,
+                    prevEndSurah: planData.prev_end_surah,
+                    prevEndVerse: planData.prev_end_verse,
+                    completedJuzs: planData.completed_juzs || studentData?.completed_juzs || [],
+                  })
+                  const planFromSurah = SURAHS.find((surah) => surah.number === adjustedPlanPreview.startSurahNumber)?.name || planData.start_surah_name
+                  const planToSurah = SURAHS.find((surah) => surah.number === adjustedPlanPreview.endSurahNumber)?.name || planData.end_surah_name
                   // بناء قائمة كل الأيام
                   const allDays = Array.from({ length: totalDays }, (_, i) => {
                     const dayNum = i + 1

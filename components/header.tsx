@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect } from "react";
 
 import Image from "next/image";
 
@@ -11,7 +11,6 @@ import {
   User,
   LogOut,
   Users,
-  LayoutDashboard,
   Menu,
   ClipboardCheck,
   Trophy,
@@ -46,7 +45,6 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { GlobalAddStudentDialog } from "@/components/global-add-student-dialog";
-import { GlobalAdminModals } from "@/components/global-admin-modals";
 import { createClient } from "@/lib/supabase/client";
 
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
@@ -82,6 +80,7 @@ function NavItem({
   indent,
 
   disabled,
+  labelClassName,
 }: {
   icon: React.ElementType;
 
@@ -94,6 +93,8 @@ function NavItem({
   indent?: boolean;
 
   disabled?: boolean;
+
+  labelClassName?: string;
 }) {
   return (
     <button
@@ -115,7 +116,7 @@ function NavItem({
           ${disabled ? "group-hover:scale-100 group-hover:text-[#00312e]/50" : ""}`}
       />
 
-      <span className="flex-1 text-right leading-tight">{label}</span>
+      <span className={`flex-1 text-right leading-tight ${labelClassName ?? ""}`.trim()}>{label}</span>
     </button>
   );
 }
@@ -273,7 +274,7 @@ export function Header() {
 
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: "instant" });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
         // جلب الترتيب العام للطالب عند تحميل القائمة الجانبية
         const fetchGlobalRank = async () => {
           const accNum = localStorage.getItem("accountNumber");
@@ -598,6 +599,10 @@ export function Header() {
 
       await new Promise((r) => setTimeout(r, 800));
 
+      try {
+        await fetch("/api/auth", { method: "DELETE" });
+      } catch {}
+
       localStorage.clear();
 
       setIsLoggedIn(false);
@@ -615,14 +620,7 @@ export function Header() {
     scrollToTop();
 
     if (href.startsWith('?')) {
-      const dashboardOnlyActions: string[] = [];
-        const action = href.split('=')[1];
-        
-        if (dashboardOnlyActions.includes(action) && window.location.pathname !== '/admin/dashboard') {
-            router.push('/admin/dashboard' + href);
-        } else {
-            router.push(window.location.pathname + href);
-        }
+        router.push(window.location.pathname + href);
     } else {
         router.push(href);
     }
@@ -1133,6 +1131,11 @@ export function Header() {
                   label="إدارة الحلقة"
                   onClick={() => handleNav("/teacher/halaqah/1")}
                 />
+                <NavItem
+                  icon={BarChart3}
+                  label="تقارير الأسابيع"
+                  onClick={() => handleNav("/teacher/weekly-reports")}
+                />
               </div>
             </>
           )}
@@ -1167,6 +1170,7 @@ export function Header() {
               <NavItem
                 icon={Users}
                 label="جميع الطلاب"
+                labelClassName="font-black"
                 onClick={() => handleNav("/students/all")}
                 indent
               />
@@ -1187,6 +1191,12 @@ export function Header() {
                 ))
               )}
             </CollapseSection>
+
+            <NavItem
+              icon={BookOpen}
+              label="أفضل الحلقات"
+              onClick={() => handleNav("/halaqat/all")}
+            />
 
             {isLoggedIn && (userRole === "teacher" || userRole === "deputy_teacher" || isAdmin) && (
               <NavItem
@@ -1396,7 +1406,7 @@ export function Header() {
 
               {/* فئة التقارير */}
 
-              {hasPermission("التقارير") && <div className="px-2 mb-0.5">
+              {["التقارير", "الغيابات"].some((permission) => hasPermission(permission)) && <div className="px-2 mb-0.5">
                 <CollapseSection
                   icon={FileText}
                   label="التقارير"
@@ -1409,6 +1419,8 @@ export function Header() {
 
                       label: "تقارير المعلمين",
 
+                      permKey: "التقارير",
+
                       path: "/admin/teacher-attendance",
                     },
 
@@ -1416,6 +1428,8 @@ export function Header() {
                       icon: MessageSquare,
 
                       label: "تقارير الرسائل",
+
+                      permKey: "التقارير",
 
                       path: "/admin/reports",
                     },
@@ -1425,9 +1439,21 @@ export function Header() {
 
                       label: "السجل اليومي للطلاب",
 
+                      permKey: "التقارير",
+
                       path: "/admin/student-daily-attendance",
                     },
-                  ].map(({ icon: Ic, label, path }) => (
+
+                    {
+                      icon: Calendar,
+
+                      label: "الغيابات",
+
+                      permKey: "الغيابات",
+
+                      path: "/admin/absences",
+                    },
+                  ].filter(({ permKey }) => hasPermission(permKey)).map(({ icon: Ic, label, path }) => (
                     <NavItem
                       key={label}
                       icon={Ic}
@@ -1441,7 +1467,7 @@ export function Header() {
 
               {/* فئة الإدارة العامة */}
 
-              {["الإشعارات", "إدارة المسار", "إنهاء الفصل", "إدارة المتجر", "الإرسال إلى أولياء الأمور", "الصلاحيات", "المالية", "الإحصائيات"].some(p => hasPermission(p)) && <div className="px-2 mb-0.5">
+              {["إدارة المسار", "إدارة المتجر", "الإشعارات", "الإحصائيات", "الصلاحيات", "المالية", "الإرسال إلى أولياء الأمور", "إنهاء الفصل"].some(p => hasPermission(p)) && <div className="px-2 mb-0.5">
                 <CollapseSection
                   icon={Settings}
                   label="الإدارة العامة"
@@ -1449,16 +1475,6 @@ export function Header() {
                   onToggle={() => setIsAdminGeneralOpen(!isAdminGeneralOpen)}
                 >
                   {[
-                    {
-                      icon: Bell,
-
-                      label: "الإشعارات",
-
-                      permKey: "الإشعارات",
-
-                      path: "/admin/notifications",
-                    },
-
                     {
                       icon: Map,
 
@@ -1480,13 +1496,23 @@ export function Header() {
                     },
 
                     {
-                      icon: Send,
+                      icon: Bell,
 
-                      label: "إرسال لأولياء الأمور",
+                      label: "الإشعارات",
 
-                      permKey: "الإرسال إلى أولياء الأمور",
+                      permKey: "الإشعارات",
 
-                      path: "/admin/whatsapp-send",
+                      path: "/admin/notifications",
+                    },
+
+                    {
+                      icon: BarChart3,
+
+                      label: "الإحصائيات",
+
+                      permKey: "الإحصائيات",
+
+                      path: "/admin/statistics",
                     },
 
                     {
@@ -1510,13 +1536,13 @@ export function Header() {
                     },
 
                     {
-                      icon: BarChart3,
+                      icon: Send,
 
-                      label: "الإحصائيات",
+                      label: "إرسال لأولياء الأمور",
 
-                      permKey: "الإحصائيات",
+                      permKey: "الإرسال إلى أولياء الأمور",
 
-                      path: "/admin/statistics",
+                      path: "/admin/whatsapp-send",
                     },
 
                     {
@@ -1526,7 +1552,7 @@ export function Header() {
 
                       permKey: "إنهاء الفصل",
 
-                      path: "/admin/dashboard?action=end-semester",
+                      path: "/admin?action=end-semester",
                     },
                   ].filter(({ permKey }) => hasPermission(permKey)).map(({ icon: Ic, label, path }) => (
                     <NavItem
@@ -1534,7 +1560,6 @@ export function Header() {
                       icon={Ic}
                       label={label}
                       onClick={() => handleNav(path)}
-                      disabled={label === "المالية"}
                       indent
                     />
                   ))}
@@ -1620,7 +1645,6 @@ export function Header() {
           )}
         </div>
       </div>
-      <GlobalAdminModals />
     </>
   );
 }

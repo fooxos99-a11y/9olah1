@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SiteLoader } from "@/components/ui/site-loader"
 import { useToast } from "@/hooks/use-toast"
+import { useVerifiedRoleAccess } from "@/hooks/use-verified-role-access"
 import { Zap, Trophy, XCircle, X, Sparkles, Clock, Award, Lock } from 'lucide-react'
 import { SizeOrderingChallenge } from "@/components/challenges/size-ordering-challenge"
 import { ColorDifferenceChallenge } from "@/components/challenges/color-difference-challenge"
@@ -23,10 +24,10 @@ export default function DailyChallengeStudent() {
   const [showResult, setShowResult] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const { isLoading: authLoading, isAuthorized, user } = useVerifiedRoleAccess(["student"])
 
   const [studentName, setStudentName] = useState("")
   const [studentId, setStudentId] = useState("")
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [challengeStarted, setChallengeStarted] = useState(false)
@@ -34,41 +35,31 @@ export default function DailyChallengeStudent() {
   const [hasPlayedToday, setHasPlayedToday] = useState(false)
 
   useEffect(() => {
-    const loggedIn = localStorage.getItem("isLoggedIn") === "true"
-    const userRole = localStorage.getItem("userRole")
-
-    if (loggedIn && userRole === "student") {
-      setIsLoggedIn(true)
-
-      const name = localStorage.getItem("studentName") || localStorage.getItem("userName") || ""
-      const accountNumber = localStorage.getItem("account_number") || localStorage.getItem("accountNumber") || ""
-
-      console.log("[v0] Student login info:", { name, accountNumber, userRole })
-
-      setStudentName(name)
-      setStudentId(accountNumber)
-
-      if (accountNumber) {
-        const lastPlayDate = localStorage.getItem(`lastPlayDate_${accountNumber}`)
-        const today = getTodayDate()
-        const played = lastPlayDate === today
-        setHasPlayedToday(played)
-        console.log("[v0] Daily challenge status:", {
-          accountNumber,
-          lastPlayDate,
-          today,
-          hasPlayedToday: played,
-        })
-      } else {
-        console.error("[v0] No account_number found in localStorage!")
-      }
-    } else {
-      setIsLoggedIn(false)
-      console.log("[v0] User not logged in as student:", { loggedIn, userRole })
-    }
-
     loadChallenge()
   }, [])
+
+  useEffect(() => {
+    if (!user) return
+
+    const name = user.name || localStorage.getItem("studentName") || localStorage.getItem("userName") || ""
+    const accountNumber = user.accountNumber || ""
+
+    setStudentName(name)
+    setStudentId(accountNumber)
+
+    if (accountNumber) {
+      const lastPlayDate = localStorage.getItem(`lastPlayDate_${accountNumber}`)
+      const today = getTodayDate()
+      const played = lastPlayDate === today
+      setHasPlayedToday(played)
+      console.log("[v0] Daily challenge status:", {
+        accountNumber,
+        lastPlayDate,
+        today,
+        hasPlayedToday: played,
+      })
+    }
+  }, [user])
 
   const getTodayDate = () => {
     // إرجاع تاريخ اليوم بتوقيت السعودية
@@ -137,7 +128,7 @@ export default function DailyChallengeStudent() {
   }
 
   const handleChallengeSuccess = async () => {
-    const pointsAwarded = challenge?.points_reward || 0
+    let awardedPoints = challenge?.points_reward || 0
 
     console.log("[v0] Challenge success! Adding points...", { studentId, pointsAwarded })
 
@@ -152,43 +143,22 @@ export default function DailyChallengeStudent() {
     }
 
     try {
-      const getAllStudentsResponse = await fetch("/api/students")
-      if (!getAllStudentsResponse.ok) {
-        throw new Error("Failed to fetch students")
-      }
-
-      const allStudentsData = await getAllStudentsResponse.json()
-      console.log("[v0] All students data:", allStudentsData)
-
-      const student = allStudentsData.students?.find((s: any) => String(s.account_number) === String(studentId))
-
-      if (!student || !student.id) {
-        console.error("[v0] Student not found in database:", { studentId, allStudents: allStudentsData.students })
-        toast({
-          title: "خطأ",
-          description: "لم يتم العثور على بياناتك. يرجى تسجيل الدخول مرة أخرى.",
-          variant: "destructive",
-        })
-        return
-      }
-
-      console.log("[v0] Found student:", { account_number: studentId, uuid: student.id, currentPoints: student.points })
-
-      const response = await fetch(`/api/students?id=${student.id}`, {
-        method: "PATCH",
+      const response = await fetch("/api/daily-challenges/solve", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          add_points: pointsAwarded,
+          challengeId: challenge?.id,
+          isCorrect: true,
         }),
       })
 
       if (response.ok) {
         const data = await response.json()
-        console.log("[v0] Points added successfully! New total:", data.student?.points)
+        if (!data.isCorrect) {
+          throw new Error(data.message || "Challenge result was not recorded as success")
+        }
 
-        // Update localStorage
-        const newPoints = data.student?.points
-        localStorage.setItem(`studentPoints_${studentId}`, newPoints.toString())
+        awardedPoints = typeof data.pointsAwarded === "number" ? data.pointsAwarded : awardedPoints
       } else {
         const errorText = await response.text()
         console.error("[v0] Failed to add points to database:", errorText)
@@ -216,7 +186,7 @@ export default function DailyChallengeStudent() {
 
     setResult({
       isCorrect: true,
-      pointsAwarded: pointsAwarded,
+      pointsAwarded: awardedPoints,
     })
     setShowResult(true)
 
@@ -227,7 +197,7 @@ export default function DailyChallengeStudent() {
         studentName,
         date: getTodayDate(),
         correct: true,
-        points: pointsAwarded,
+        points: awardedPoints,
       })
       localStorage.setItem("challengeAttempts", JSON.stringify(attempts))
     } catch (error) {
@@ -236,7 +206,7 @@ export default function DailyChallengeStudent() {
 
     toast({
       title: "✓ فزت!",
-      description: `مبروك! حصلت على ${pointsAwarded} نقطة`,
+      description: `مبروك! حصلت على ${awardedPoints} نقطة`,
       className: "bg-gradient-to-r from-[#d8a355] to-[#c89547] text-white border-none",
     })
   }
@@ -246,6 +216,15 @@ export default function DailyChallengeStudent() {
       console.error("[v0] Cannot mark as played: studentId is empty!")
       return
     }
+
+    void fetch("/api/daily-challenges/solve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        challengeId: challenge?.id,
+        isCorrect: false,
+      }),
+    })
 
     const today = getTodayDate()
     localStorage.setItem(`lastPlayDate_${studentId}`, today)
@@ -279,6 +258,10 @@ export default function DailyChallengeStudent() {
       return
     }
 
+    const today = getTodayDate()
+    localStorage.setItem(`lastPlayDate_${studentId}`, today)
+    setHasPlayedToday(true)
+
     setIsFullscreen(true)
     setChallengeStarted(true)
   }
@@ -288,7 +271,7 @@ export default function DailyChallengeStudent() {
     setChallengeStarted(false)
   }
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#faf8f5] via-[#f5f0e8] to-[#ebe4d8]">
         <SiteLoader size="lg" />
@@ -296,47 +279,8 @@ export default function DailyChallengeStudent() {
     )
   }
 
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#faf8f5] via-[#f5f0e8] to-[#ebe4d8]">
-        <Header />
-
-        <main className="flex-1 py-16 px-4">
-          <div className="container mx-auto max-w-4xl">
-            <div className="mb-12 text-center animate-slide-up">
-              <div className="inline-flex items-center gap-3 bg-gradient-to-r from-[#faf8f5] via-[#f5f0e8] to-[#ebe4d8] border-2 border-[#d8a355] px-6 py-2 rounded-full mb-6 shadow-lg">
-                <Sparkles className="w-5 h-5 text-[#d8a355] animate-pulse" />
-                <span className="text-sm font-semibold text-[#d8a355]">تحدي اليوم</span>
-              </div>
-              <h1 className="text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-[#d8a355] via-[#c89547] to-[#b8823d] bg-clip-text text-transparent leading-tight">
-                التحدي اليومي
-              </h1>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-                اختبر مهاراتك واحصل على نقاط إضافية
-              </p>
-            </div>
-
-            <Card className="border-none shadow-2xl overflow-hidden animate-scale-in bg-gradient-to-br from-[#faf8f5] to-[#f5f0e8] backdrop-blur-sm">
-              <CardContent className="py-20 text-center">
-                <div className="inline-flex items-center justify-center w-32 h-32 bg-gradient-to-r from-[#faf8f5] via-[#f5f0e8] to-[#ebe4d8] border-2 border-[#d8a355] rounded-full mb-6 shadow-lg">
-                  <Lock className="w-16 h-16 text-[#d8a355]" />
-                </div>
-                <h2 className="text-3xl font-bold text-gray-800 mb-3">هذا القسم متاح للطلاب المسجلين فقط</h2>
-                <p className="text-lg text-gray-600 mb-8">يرجى تسجيل الدخول للوصول إلى التحدي اليومي</p>
-                <Button
-                  onClick={() => router.push("/login")}
-                  className="bg-gradient-to-r from-[#d8a355] via-[#c89547] to-[#b8823d] hover:from-[#c89547] hover:via-[#d8a355] hover:to-[#c89547] text-white font-bold py-6 px-12 text-xl shadow-xl hover:shadow-2xl transition-all duration-300 rounded-xl"
-                >
-                  تسجيل الدخول
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </main>
-
-        <Footer />
-      </div>
-    )
+  if (!isAuthorized) {
+    return null
   }
 
   if (isFullscreen && challenge) {

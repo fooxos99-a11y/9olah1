@@ -7,6 +7,7 @@ import { SiteLoader } from "@/components/ui/site-loader"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import { Award, Calendar, Star, MonitorPlay, X} from "lucide-react"
 import { useEffect, useState } from "react"
+import { getLockedLeaderboardTheme, isLockedLeaderboardRank } from "@/lib/leaderboard-rank-theme"
 
 interface Student {
   id: string
@@ -277,8 +278,9 @@ export default function MusabHalaqahPage() {
             <div className="max-w-5xl mx-auto">
               <div className="grid grid-cols-1 gap-6">
                 {topStudents.map((student, index) => {
-                  const themeColors = getThemeColors(student.preferred_theme)
-                  const isForest = isForestTheme(student.preferred_theme)
+                  const isLockedRank = isLockedLeaderboardRank(index)
+                  const themeColors = isLockedRank ? getLockedLeaderboardTheme(index) : getThemeColors(student.preferred_theme)
+                  const isForest = !isLockedRank && isForestTheme(student.preferred_theme)
 
                   return (
                     <div
@@ -306,90 +308,46 @@ export default function MusabHalaqahPage() {
 
                       {isForest && <ForestLeaves />}
 
-                      <div className="p-3 sm:p-8 flex flex-col sm:flex-row items-center gap-3 sm:gap-8">
-                        <div className="relative flex-shrink-0 mb-2 sm:mb-0">
-                          <svg
-                            width="80"
-                            height="92"
-                            viewBox="0 0 80 92"
-                            className={`group-hover:scale-110 transition-transform duration-300 ${isForest ? "drop-shadow-[0_4px_12px_rgba(34,197,94,0.5)]" : ""}`}
+                      <div className="relative z-10 grid gap-4 p-4 md:grid-cols-[84px_minmax(0,1fr)_132px] md:items-center md:gap-5 md:p-6">
+                        <div className="flex items-center justify-center md:justify-start">
+                          <div
+                            className="relative flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_12px_28px_-18px_rgba(0,0,0,0.35)] transition-transform duration-300 group-hover:scale-105 md:h-16 md:w-16"
+                            style={{
+                              background: `radial-gradient(circle at 30% 30%, ${themeColors.secondary}, ${themeColors.primary})`,
+                              borderColor: `${themeColors.tertiary}66`,
+                            }}
                           >
-                            <defs>
-                              <linearGradient id={`grad-${student.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor={themeColors.primary} />
-                                <stop offset="50%" stopColor={themeColors.secondary} />
-                                <stop offset="100%" stopColor={themeColors.tertiary} />
-                              </linearGradient>
-                              {isForest && (
-                                <filter id={`forest-shadow-${student.id}`} x="-50%" y="-50%" width="200%" height="200%">
-                                  <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
-                                  <feOffset dx="0" dy="4" result="offsetblur" />
-                                  <feComponentTransfer>
-                                    <feFuncA type="linear" slope="0.4" />
-                                  </feComponentTransfer>
-                                  <feMerge>
-                                    <feMergeNode />
-                                    <feMergeNode in="SourceGraphic" />
-                                  </feMerge>
-                                </filter>
-                              )}
-                            </defs>
-                            <path
-                              d="M40 2 L75 23.5 L75 68.5 L40 90 L5 68.5 L5 23.5 Z"
-                              fill={`url(#grad-${student.id})`}
-                              stroke={themeColors.tertiary}
-                              strokeWidth="2"
-                              filter={isForest ? `url(#forest-shadow-${student.id})` : undefined}
-                            />
-                            <text
-                              x="40"
-                              y="55"
-                              textAnchor="middle"
-                              fill="white"
-                              fontSize="32"
-                              fontWeight="bold"
-                              fontFamily="system-ui"
-                            >
-                              {index + 1}
-                            </text>
-                          </svg>
+                            <div className="absolute inset-[4px] rounded-full border border-white/25" />
+                            <div className="absolute h-2 w-2 rounded-full bg-white/30 top-2.5 right-2.5" />
+                            <div className="text-center text-white">
+                              <div className="text-xl font-black leading-none md:text-2xl">{index + 1}</div>
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="flex-1 min-w-0 w-full flex flex-col items-center">
+                        <div className="min-w-0 text-center md:text-right">
                           <h3
-                            className={`text-xl sm:text-2xl font-bold mb-1 sm:mb-2 text-center transition-colors duration-300 ${
-                              isForest
-                                ? "text-[#166534] group-hover:text-[#14532d]"
-                                : "text-[#023232] group-hover:text-[#1a3a3a]"
+                            className={`text-xl font-black tracking-tight transition-colors duration-300 md:text-3xl ${
+                              isForest ? "text-[#166534] group-hover:text-[#14532d]" : "text-[#12312f] group-hover:text-[#1f4b47]"
                             }`}
                           >
                             {student.name}
                           </h3>
-                          <div className="flex flex-wrap gap-1 sm:gap-2 justify-center mt-2 sm:mt-3">
+                          <div className="mt-3 flex flex-wrap justify-center gap-1.5 md:justify-start md:gap-2">
                             {student.badges?.map((badge, idx) => (
-                              <div key={idx}>{renderBadge(badge)}</div>
+                              <div key={idx} className="scale-90 md:scale-100">{renderBadge(badge)}</div>
                             ))}
                           </div>
                         </div>
 
-                        <div
-                          className={`flex flex-col items-center rounded-2xl px-6 py-3 sm:px-8 sm:py-4 border-2 shadow-inner mt-2 sm:mt-0 w-full sm:w-auto ${
-                            isForest ? "shadow-[inset_0_2px_8px_rgba(22,163,74,0.2)]" : ""
-                          }`}
-                          style={{
-                            backgroundColor: isForest ? "#dcfce7" : `${themeColors.primary}20`,
-                            borderColor: isForest ? "#22C55E" : `${themeColors.primary}40`,
-                          }}
-                        >
+                        <div className="flex justify-center md:justify-end">
                           <div
-                            className={`text-2xl sm:text-4xl font-bold leading-none ${isForest ? "text-[#166534]" : "text-[#023232]"}`}
+                            className="min-w-[104px] rounded-[22px] border bg-white/90 px-4 py-3 text-center shadow-[0_18px_40px_-24px_rgba(0,0,0,0.35)] backdrop-blur"
+                            style={{ borderColor: isForest ? "#22C55E" : `${themeColors.primary}88` }}
                           >
-                            {student.points || 0}
-                          </div>
-                          <div
-                            className={`text-xs font-bold mt-1 sm:mt-2 tracking-wide ${isForest ? "text-[#15803d]" : "text-gray-600"}`}
-                          >
-                            نقطة
+                            <div className={`text-2xl font-black leading-none md:text-3xl ${isForest ? "text-[#166534]" : "text-[#12312f]"}`}>
+                              {student.points || 0}
+                            </div>
                           </div>
                         </div>
                       </div>

@@ -11,18 +11,32 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { Award, TrendingUp } from "lucide-react"
 
+interface Circle {
+  id: string
+  name: string
+}
+
+interface Student {
+  id: string
+  name: string
+  points?: number | null
+  halaqah?: string | null
+}
+
+const getStudentCircleName = (student: Student) => (student.halaqah || "غير محدد").trim()
+
 export function GlobalEditPointsDialog() {
   const router = useRouter()
   const { toast } = useToast()
 
   const [isOpen, setIsOpen] = useState(true)
-  const [circles, setCircles] = useState<any[]>([])
-  const [studentsInCircles, setStudentsInCircles] = useState<Record<string, any[]>>({})
+  const [circles, setCircles] = useState<Circle[]>([])
+  const [studentsInCircles, setStudentsInCircles] = useState<Record<string, Student[]>>({})
   
   const [selectedCircleForPoints, setSelectedCircleForPoints] = useState("")
   const [selectedStudentForPoints, setSelectedStudentForPoints] = useState("")
   
-  const [editingStudentPoints, setEditingStudentPoints] = useState<any>(null)
+  const [editingStudentPoints, setEditingStudentPoints] = useState<Student | null>(null)
   const [newPoints, setNewPoints] = useState("")
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -35,17 +49,21 @@ export function GlobalEditPointsDialog() {
     try {
       const supabase = createClient()
       const [circlesRes, studentsRes] = await Promise.all([
-        supabase.from("circles").select("*").order("created_at", { ascending: false }),
-        supabase.from("students").select("*")
+        supabase.from("circles").select("id, name").order("created_at", { ascending: false }),
+        supabase.from("students").select("id, name, points, halaqah")
       ])
       
       if (!circlesRes.error && circlesRes.data) setCircles(circlesRes.data)
+      if (studentsRes.error) {
+        console.error("Error fetching students for edit points:", studentsRes.error)
+      }
       
       if (!studentsRes.error && studentsRes.data) {
-        const grouped: Record<string, any[]> = {}
-        studentsRes.data.forEach((s) => {
-          if (!grouped[s.circle_name]) grouped[s.circle_name] = []
-          grouped[s.circle_name].push(s)
+        const grouped: Record<string, Student[]> = {}
+        studentsRes.data.forEach((student) => {
+          const circleKey = getStudentCircleName(student)
+          if (!grouped[circleKey]) grouped[circleKey] = []
+          grouped[circleKey].push(student)
         })
         setStudentsInCircles(grouped)
       }
@@ -77,10 +95,14 @@ export function GlobalEditPointsDialog() {
         const parsedPoints = parseInt(newPoints)
         if (isNaN(parsedPoints)) throw new Error("Invalid points value")
 
-        const res = await fetch(`/api/students/${editingStudentPoints.id}`, {
+        const oldPoints = editingStudentPoints.points || 0
+        const diff = parsedPoints - oldPoints
+        const body = diff > 0 ? { add_points: diff } : { points: parsedPoints }
+
+        const res = await fetch(`/api/students?id=${editingStudentPoints.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ points: parsedPoints }),
+          body: JSON.stringify(body),
         })
         if (!res.ok) throw new Error("Failed to update points")
 
@@ -132,7 +154,7 @@ export function GlobalEditPointsDialog() {
                 <SelectValue placeholder={selectedCircleForPoints ? "اختر الطالب" : "اختر الحلقة أولاً"} />
               </SelectTrigger>
               <SelectContent dir="rtl">
-                {availableStudentsForPoints.map((student: any) => (
+                {availableStudentsForPoints.map((student) => (
                   <SelectItem key={student.id} value={student.id}>{student.name}</SelectItem>
                 ))}
               </SelectContent>

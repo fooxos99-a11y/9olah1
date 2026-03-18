@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import { ensureStudentAccess, requireRoles } from "@/lib/auth/guards"
 import {
   SURAHS,
   calculateQuranMemorizationProgress,
@@ -8,6 +9,7 @@ import {
   getJuzNumbersForPageRange,
   getNextAyahReference,
   getNormalizedCompletedJuzs,
+  getPendingMasteryJuzs,
   hasScatteredCompletedJuzs,
   getPageFloatForAyah,
   resolvePlanTotalDays,
@@ -17,6 +19,26 @@ import { getSaudiDateString } from "@/lib/saudi-time"
 import { isEvaluatedAttendance } from "@/lib/student-attendance"
 
 const ADVANCING_MEMORIZATION_LEVELS = ["excellent", "good", "very_good"]
+
+function normalizePlanSurahNames<T extends {
+  start_surah_number?: number | null
+  end_surah_number?: number | null
+  start_surah_name?: string | null
+  end_surah_name?: string | null
+}>(plan: T): T {
+  const startSurahName = plan.start_surah_number
+    ? SURAHS.find((surah) => surah.number === Number(plan.start_surah_number))?.name
+    : null
+  const endSurahName = plan.end_surah_number
+    ? SURAHS.find((surah) => surah.number === Number(plan.end_surah_number))?.name
+    : null
+
+  return {
+    ...plan,
+    start_surah_name: startSurahName || plan.start_surah_name,
+    end_surah_name: endSurahName || plan.end_surah_name,
+  }
+}
 
 function hasCompletedMemorization(record: any) {
   if (!isEvaluatedAttendance(record.status)) return false
@@ -31,6 +53,22 @@ function hasCompletedMemorization(record: any) {
 
   const latestEvaluation = evaluations[evaluations.length - 1]
   return ADVANCING_MEMORIZATION_LEVELS.includes(latestEvaluation?.hafiz_level ?? "")
+}
+
+function getScheduledStudyDates(startDate: string, maxSessions: number, endDate = getSaudiDateString()) {
+  const scheduledDates: string[] = []
+  const currentDate = new Date(startDate)
+  const lastDate = new Date(endDate)
+
+  while (currentDate <= lastDate && scheduledDates.length < maxSessions) {
+    const dayOfWeek = currentDate.getDay()
+    if (dayOfWeek !== 5 && dayOfWeek !== 6) {
+      scheduledDates.push(currentDate.toISOString().split("T")[0])
+    }
+    currentDate.setDate(currentDate.getDate() + 1)
+  }
+
+  return scheduledDates
 }
 
 function getExpectedNextStart(prevStartSurah?: number | null, prevEndSurah?: number | null, prevEndVerse?: number | null) {
@@ -89,6 +127,12 @@ function isStartAllowedAfterPrevious(
 // GET - جلب خطط طالب معين أو جلب كل الخطط
 export async function GET(request: Request) {
   try {
+    const auth = await requireRoles(request, ["student", "teacher", "deputy_teacher", "admin", "supervisor"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
+    const { session } = auth
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const studentId = searchParams.get("student_id")
@@ -101,15 +145,21 @@ export async function GET(request: Request) {
         .eq("id", planId)
         .single()
       if (error) throw error
-      return NextResponse.json({ plan: data })
+      return NextResponse.json({ plan: normalizePlanSurahNames(data) })
     }
 
     if (studentId) {
+      const studentAccess = await ensureStudentAccess(supabase, session, studentId)
+      if ("response" in studentAccess) {
+        return studentAccess.response
+      }
+
       const { data: studentData } = await supabase
         .from("students")
         .select("completed_juzs, current_juzs")
         .eq("id", studentId)
         .maybeSingle()
+      const pendingMasteryJuzs = getPendingMasteryJuzs(studentData?.current_juzs, studentData?.completed_juzs)
 
       // جلب الخطة مع عدد الأيام المكتملة
       const { data: plans, error } = await supabase
@@ -140,11 +190,11 @@ export async function GET(request: Request) {
         })
       }
 
-      const rawPlan = plans[0] // الخطة الأحدث هي الفعالة
+      const rawPlan = normalizePlanSurahNames(plans[0]) // الخطة الأحدث هي الفعالة
       const plan = {
         ...rawPlan,
         completed_juzs: studentData?.completed_juzs || [],
-        current_juzs: studentData?.current_juzs || [],
+        current_juzs: pendingMasteryJuzs,
         total_pages: resolvePlanTotalPages({
           ...rawPlan,
           completed_juzs: studentData?.completed_juzs || [],
@@ -158,7 +208,7 @@ export async function GET(request: Request) {
       // جلب سجلات الحضور مع تقييماتها (join مع evaluations)
       let attQuery = supabase
         .from("attendance_records")
-        .select("id, date, status, evaluations(hafiz_level, tikrar_level, samaa_level, rabet_level)")
+        .select("id, date, status, is_compensation, created_at, evaluations(hafiz_level, tikrar_level, samaa_level, rabet_level)")
         .eq("student_id", studentId)
         .order("date", { ascending: true })
 
@@ -179,8 +229,58 @@ export async function GET(request: Request) {
         })
       }
 
-      // اليوم يُحتسب مكتملًا فقط إذا كان الطالب حاضرًا وتم تقييم الحفظ نفسه بشكل إيجابي.
-      const completedRecords = (attendanceRecords || []).filter(hasCompletedMemorization)
+      const scheduledDates = plan.start_date
+        ? getScheduledStudyDates(plan.start_date, plan.total_days || 0)
+        : []
+
+      const passingRecords = (attendanceRecords || []).filter(hasCompletedMemorization)
+      const compensationRecords = passingRecords
+        .filter((record: any) => !!record.is_compensation)
+        .sort((left: any, right: any) => left.date.localeCompare(right.date))
+      const normalRecords = passingRecords
+        .filter((record: any) => !record.is_compensation)
+        .sort((left: any, right: any) => {
+          const dateComparison = left.date.localeCompare(right.date)
+          if (dateComparison !== 0) return dateComparison
+          return String(left.created_at || "").localeCompare(String(right.created_at || ""))
+        })
+
+      const fulfilledSessions = new Set<number>()
+      const assignedRecordsBySession = new Map<number, any>()
+
+      for (const record of compensationRecords) {
+        const sessionIndex = scheduledDates.findIndex((scheduledDate) => scheduledDate === record.date) + 1
+        if (!sessionIndex || fulfilledSessions.has(sessionIndex)) {
+          continue
+        }
+
+        fulfilledSessions.add(sessionIndex)
+        assignedRecordsBySession.set(sessionIndex, record)
+      }
+
+      for (const record of normalRecords) {
+        for (let sessionIndex = 1; sessionIndex <= scheduledDates.length; sessionIndex += 1) {
+          if (fulfilledSessions.has(sessionIndex)) {
+            continue
+          }
+
+          fulfilledSessions.add(sessionIndex)
+          assignedRecordsBySession.set(sessionIndex, record)
+          break
+        }
+      }
+
+      const completedRecords: any[] = []
+      for (let sessionIndex = 1; sessionIndex <= scheduledDates.length; sessionIndex += 1) {
+        if (!fulfilledSessions.has(sessionIndex)) {
+          break
+        }
+
+        const record = assignedRecordsBySession.get(sessionIndex)
+        if (record) {
+          completedRecords.push(record)
+        }
+      }
 
       const completedDays = completedRecords.length
       const progressPercent =
@@ -211,6 +311,12 @@ export async function GET(request: Request) {
 // POST - إنشاء خطة جديدة للطالب
 export async function POST(request: Request) {
   try {
+    const auth = await requireRoles(request, ["teacher", "deputy_teacher", "admin", "supervisor"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
+    const { session } = auth
     const supabase = await createClient()
     const body = await request.json()
     const {
@@ -241,6 +347,7 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     const normalizedCompletedJuzs = getNormalizedCompletedJuzs(studentMemorizedData?.completed_juzs)
+    const pendingMasteryJuzs = getPendingMasteryJuzs(studentMemorizedData?.current_juzs, normalizedCompletedJuzs)
     const completedJuzRange = hasScatteredCompletedJuzs(normalizedCompletedJuzs)
       ? null
       : getContiguousCompletedJuzRange(normalizedCompletedJuzs)
@@ -260,6 +367,11 @@ export async function POST(request: Request) {
 
     if (!student_id || !start_surah_number || !end_surah_number || !daily_pages) {
       return NextResponse.json({ error: "البيانات المطلوبة ناقصة" }, { status: 400 })
+    }
+
+    const studentAccess = await ensureStudentAccess(supabase, session, student_id)
+    if ("response" in studentAccess) {
+      return studentAccess.response
     }
 
     const normalizedDirection = direction || (Number(start_surah_number) > Number(end_surah_number) ? "desc" : "asc")
@@ -441,7 +553,7 @@ export async function POST(request: Request) {
       plan: {
         ...data,
         completed_juzs: normalizedCompletedJuzs,
-        current_juzs: studentMemorizedData?.current_juzs || [],
+        current_juzs: pendingMasteryJuzs,
       },
       message: adjustedPlanMessage,
     }, { status: 201 })
@@ -454,15 +566,45 @@ export async function POST(request: Request) {
 // DELETE - حذف خطة
 export async function DELETE(request: Request) {
   try {
+    const auth = await requireRoles(request, ["teacher", "deputy_teacher", "admin", "supervisor"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
+    const { session } = auth
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const planId = searchParams.get("plan_id")
     const studentId = searchParams.get("student_id")
 
     if (planId) {
+      const { data: plan, error: planError } = await supabase
+        .from("student_plans")
+        .select("student_id")
+        .eq("id", planId)
+        .maybeSingle()
+
+      if (planError) {
+        throw planError
+      }
+
+      if (!plan?.student_id) {
+        return NextResponse.json({ error: "الخطة غير موجودة" }, { status: 404 })
+      }
+
+      const studentAccess = await ensureStudentAccess(supabase, session, plan.student_id)
+      if ("response" in studentAccess) {
+        return studentAccess.response
+      }
+
       const { error } = await supabase.from("student_plans").delete().eq("id", planId)
       if (error) throw error
     } else if (studentId) {
+      const studentAccess = await ensureStudentAccess(supabase, session, studentId)
+      if ("response" in studentAccess) {
+        return studentAccess.response
+      }
+
       const { error } = await supabase.from("student_plans").delete().eq("student_id", studentId)
       if (error) throw error
     } else {

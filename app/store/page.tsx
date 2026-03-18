@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from 'next/navigation'
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
+import { ThemeRankPreview } from "@/components/theme-rank-preview"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { SiteLoader } from "@/components/ui/site-loader"
@@ -113,9 +114,9 @@ export default function StorePage() {
   const fetchStudentData = async () => {
     try {
       const accountNumber = localStorage.getItem("accountNumber")
-      const response = await fetch(`/api/students`)
+      const response = await fetch(`/api/students?account_number=${accountNumber}`)
       const data = await response.json()
-      const student = data.students?.find((s: any) => s.account_number === Number(accountNumber))
+      const student = data.students?.[0]
       if (student) {
         setStudentPoints(student.store_points || 0)
         setStudentId(student.id)
@@ -232,7 +233,13 @@ export default function StorePage() {
                 if (b.name === "المظاهر") return -1;
                 return 0;
               }).map((category) => {
-                const categoryProducts = products.filter((prod) => prod.category_id === category.id)
+                const categoryProducts = products
+                  .filter((prod) => prod.category_id === category.id)
+                  .sort((a, b) => {
+                    const priceDiff = Number(a.price || 0) - Number(b.price || 0)
+                    if (priceDiff !== 0) return priceDiff
+                    return String(a.name || "").localeCompare(String(b.name || ""), "ar")
+                  })
                 return (
                   <div key={category.id}>
                     {/* Category Header */}
@@ -256,45 +263,10 @@ export default function StorePage() {
                             {/* Image / Theme Preview */}
                             {prod.theme_key ? (() => {
                               const tc = THEME_COLORS[prod.theme_key] || { primary: '#d8a355', secondary: '#c99347', tertiary: '#b88a3d' }
+                              const isPremium = ["dawn", "galaxy", "sunset_gold", "ocean_deep"].includes(prod.theme_key)
                               return (
-                                <div className="relative w-full overflow-hidden rounded-t-xl">
-                                  {/* Corner accents - Top Left */}
-                                  <div className="absolute top-0 left-0 w-16 h-16 overflow-hidden z-10">
-                                    <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 rounded-tl-lg border-[#d8a355]" />
-                                    <div className="absolute top-1 left-1 w-3 h-3 rounded-full animate-pulse bg-[#d8a355]" />
-                                    <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 rounded-tl-2xl border-[#d8a355]/20" />
-                                  </div>
-                                  {/* Corner accents - Top Right */}
-                                  <div className="absolute top-0 right-0 w-16 h-16 overflow-hidden z-10">
-                                    <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 rounded-tr-lg border-[#d8a355]" />
-                                    <div className="absolute top-2 right-2 w-0 h-0 border-t-[8px] border-l-[8px] border-l-transparent border-t-[#d8a355]" />
-                                    <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 rounded-tr-2xl border-[#d8a355]/20" />
-                                  </div>
-                                  {/* Corner accents - Bottom Left */}
-                                  <div className="absolute bottom-0 left-0 w-16 h-16 overflow-hidden z-10">
-                                    <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 rounded-bl-lg border-[#d8a355]" />
-                                    <div className="absolute bottom-2 left-2 w-3 h-3 rotate-45 bg-[#d8a355]/60" />
-                                    <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 rounded-bl-2xl border-[#d8a355]/20" />
-                                  </div>
-                                  {/* Corner accents - Bottom Right */}
-                                  <div className="absolute bottom-0 right-0 w-16 h-16 overflow-hidden z-10">
-                                    <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 rounded-br-lg border-[#d8a355]" />
-                                    <div className="absolute bottom-3 right-3 w-3 h-3 rotate-45 animate-pulse bg-[#d8a355]" style={{ animationDelay: '0.5s' }} />
-                                    <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 rounded-br-2xl border-[#d8a355]/20" />
-                                  </div>
-                                  {/* Preview inner */}
-                                  <div className="m-4 rounded-xl overflow-hidden border-2 h-32"
-                                    style={{
-                                      backgroundColor: `${tc.primary}10`,
-                                      borderColor: `${tc.primary}50`,
-                                      backgroundImage: `radial-gradient(circle at 20% 80%, ${tc.primary}08 0%, transparent 50%), radial-gradient(circle at 80% 20%, ${tc.secondary}06 0%, transparent 50%)`,
-                                    }}>
-                                    {/* top gradient bar */}
-                                    <div className="w-full h-2" style={{ backgroundImage: `linear-gradient(to right, ${tc.primary}, ${tc.secondary}, ${tc.tertiary})` }} />
-                                    <div className="flex items-center justify-center h-[calc(100%-8px)]">
-                                      <Palette className="w-12 h-12" style={{ color: tc.primary }} />
-                                    </div>
-                                  </div>
+                                <div className="p-4">
+                                  <ThemeRankPreview primary={tc.primary} secondary={tc.secondary} tertiary={tc.tertiary} premium={isPremium} />
                                 </div>
                               )
                             })() : (
@@ -335,9 +307,9 @@ export default function StorePage() {
                                 style={{ background: 'linear-gradient(135deg, #00352f 0%, #00453e 100%)', color: '#f5c96a' }}
                                 onClick={async () => {
                                   const accountNumber = localStorage.getItem("accountNumber")
-                                  const studentsRes = await fetch(`/api/students`)
+                                  const studentsRes = await fetch(`/api/students?account_number=${accountNumber}`)
                                   const studentsData = await studentsRes.json()
-                                  const student = studentsData.students?.find((s: any) => s.account_number === Number(accountNumber))
+                                  const student = studentsData.students?.[0]
                                   if (!student) {
                                     toast({ title: "خطأ", description: "لم يتم العثور على الطالب", variant: "destructive" })
                                     return

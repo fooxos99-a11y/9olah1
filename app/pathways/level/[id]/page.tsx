@@ -304,11 +304,6 @@ export default function LevelPage() {
                                 setAlreadyCompleted(true);
                                 if (typeof result.points === 'number' && result.points > 0) {
                                   setLastAwardedPoints(result.points);
-                                  await fetch(`/api/students`, {
-                                    method: "PATCH",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ id: studentId, add_points: result.points }),
-                                  });
                                 } else {
                                   setLastAwardedPoints(0);
                                 }

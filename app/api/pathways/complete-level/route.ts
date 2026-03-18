@@ -1,14 +1,26 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { ensureStudentAccess, requireRoles } from "@/lib/auth/guards";
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireRoles(request, ["student", "admin", "supervisor"]);
+    if ("response" in auth) {
+      return auth.response;
+    }
+
+    const { session } = auth;
     const supabase = await createClient();
     const body = await request.json();
     const { student_id, level_number, correct_count, total_count } = body;
 
     if (!student_id || !level_number) {
       return NextResponse.json({ error: "student_id و level_number مطلوبان" }, { status: 400 });
+    }
+
+    const studentAccess = await ensureStudentAccess(supabase, session, student_id);
+    if ("response" in studentAccess) {
+      return studentAccess.response;
     }
 
     // تحقق إذا كان السجل موجود مسبقاً
@@ -68,6 +80,22 @@ export async function POST(request: Request) {
     if (error) {
       console.error("[COMPLETE-LEVEL API] Insert error:", error);
       return NextResponse.json({ error: error.message || "فشل في إضافة سجل الإكمال" }, { status: 500 });
+    }
+
+    if (points > 0) {
+      const { data: currentStudent } = await supabase
+        .from("students")
+        .select("points, store_points")
+        .eq("id", student_id)
+        .maybeSingle();
+
+      await supabase
+        .from("students")
+        .update({
+          points: (currentStudent?.points || 0) + points,
+          store_points: (currentStudent?.store_points || 0) + points,
+        })
+        .eq("id", student_id);
     }
 
     return NextResponse.json({ success: true, completion: data, points });

@@ -1,59 +1,111 @@
-import { createServerClient } from "@supabase/ssr"
-import { cookies } from "next/headers"
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server"
+import { requireRoles } from "@/lib/auth/guards"
+
+function getKsaDateString() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Riyadh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date())
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
-          },
-        },
-      },
-    )
+    const auth = await requireRoles(request, ["student"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
+    const { session } = auth
+    const supabase = await createClient()
 
     const body = await request.json()
-    const { studentId, studentName, answer } = body
+    const { challengeId, answer, isCorrect } = body
 
-    const correctAnswer = JSON.stringify([
-      { shape: "مثلث", size: 1 },
-      { shape: "مربع", size: 2 },
-      { shape: "دائرة", size: 3 },
-      { shape: "نجمة", size: 4 },
-    ])
+    const todayDate = getKsaDateString()
 
-    const isCorrect = answer === correctAnswer
+    let challengeQuery = supabase
+      .from("daily_challenges")
+      .select("id, title, points_reward")
+      .eq("date", todayDate)
+      .limit(1)
 
-    console.log("[v0] Challenge solution:", {
-      studentId,
-      studentName,
-      isCorrect,
-      timestamp: new Date().toISOString(),
-    })
+    if (challengeId) {
+      challengeQuery = challengeQuery.eq("id", challengeId)
+    }
 
-    if (isCorrect) {
+    const { data: challenge, error: challengeError } = await challengeQuery.maybeSingle()
+
+    if (challengeError || !challenge) {
+      return NextResponse.json({ error: "تعذر العثور على تحدي اليوم" }, { status: 404 })
+    }
+
+    const { data: existingSolution } = await supabase
+      .from("daily_challenge_solutions")
+      .select("id, is_correct")
+      .eq("challenge_id", challenge.id)
+      .eq("student_id", session.id)
+      .maybeSingle()
+
+    if (existingSolution) {
+      return NextResponse.json({
+        success: existingSolution.is_correct,
+        alreadySolved: true,
+        isCorrect: existingSolution.is_correct,
+        pointsAwarded: existingSolution.is_correct ? challenge.points_reward || 0 : 0,
+        message: existingSolution.is_correct ? "تم احتساب نتيجة التحدي مسبقًا" : "تم تسجيل محاولتك مسبقًا",
+      })
+    }
+
+    const normalizedCorrect = Boolean(isCorrect)
+
+    const { error: insertError } = await supabase
+      .from("daily_challenge_solutions")
+      .insert({
+        challenge_id: challenge.id,
+        student_id: session.id,
+        student_name: session.name,
+        answer: answer ? JSON.stringify(answer) : null,
+        is_correct: normalizedCorrect,
+      })
+
+    if (insertError) {
+      return NextResponse.json({ error: "تعذر حفظ محاولة التحدي" }, { status: 500 })
+    }
+
+    if (normalizedCorrect) {
+      const pointsAwarded = challenge.points_reward || 0
+      const { data: studentData } = await supabase
+        .from("students")
+        .select("points, store_points")
+        .eq("id", session.id)
+        .maybeSingle()
+
+      await supabase
+        .from("students")
+        .update({
+          points: (studentData?.points || 0) + pointsAwarded,
+          store_points: (studentData?.store_points || 0) + pointsAwarded,
+        })
+        .eq("id", session.id)
+
       return NextResponse.json({
         success: true,
         isCorrect: true,
-        pointsAwarded: 20,
-        message: "مبروك! حصلت على 20 نقطة",
-      })
-    } else {
-      return NextResponse.json({
-        success: false,
-        isCorrect: false,
-        message: "الترتيب غير صحيح، حاول مرة أخرى غداً",
+        pointsAwarded,
+        message: `مبروك! حصلت على ${pointsAwarded} نقطة`,
       })
     }
+
+    return NextResponse.json({
+      success: false,
+      isCorrect: false,
+      pointsAwarded: 0,
+      message: "تم تسجيل المحاولة، حاول مرة أخرى غداً",
+    })
   } catch (error) {
     console.error("[v0] Error:", error)
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 })

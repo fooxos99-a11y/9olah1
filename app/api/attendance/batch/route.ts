@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { getAbsenceNotificationTemplates, syncAbsenceNotification } from "@/lib/absence-notifications"
 import {
   applyAttendancePointsAdjustment,
   calculateTotalEvaluationPoints,
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createClient()
+  const absenceTemplates = await getAbsenceNotificationTemplates(supabase)
     const todayDate = getKsaDateString()
     const results = []
     for (const student of students) {
@@ -85,6 +87,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
       let attendanceRecord;
       let oldPoints = 0;
+      const previousStatus = existingRecord?.status ?? null
 
       if (existingRecord) {
         // حذف التقييم القديم وخصم النقاط القديمة
@@ -149,6 +152,15 @@ export async function POST(request: NextRequest) {
         }
         attendanceRecord = newRecord;
       }
+
+      await syncAbsenceNotification({
+        supabase,
+        studentId: student_id,
+        date: todayDate,
+        previousStatus,
+        nextStatus: status,
+        templates: absenceTemplates,
+      })
 
       // إضافة التقييم الجديد وحساب النقاط فقط إذا لم يكن غائب أو مستأذن
       if (isEvaluatedAttendance(status)) {

@@ -232,7 +232,7 @@ export default function AdminsManagement() {
           <div className="flex items-center justify-between border-b border-[#D4AF37]/40 pb-6">
             <div className="flex items-center gap-3">
               <button
-                onClick={() => router.push("/admin/dashboard")}
+                onClick={() => router.push("/admin")}
                 className="w-10 h-10 rounded-full bg-white border border-[#D4AF37]/30 flex items-center justify-center text-neutral-600 hover:bg-[#D4AF37]/10 hover:text-[#D4AF37] transition-all"
               >
                 <ArrowRight className="w-5 h-5 rotate-180" />

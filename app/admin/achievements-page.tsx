@@ -7,7 +7,16 @@ import { SiteLoader } from "@/components/ui/site-loader"
 import { useAdminAuth } from "@/hooks/use-admin-auth"
 
 export default function AdminAchievementsPage() {
-  useAdminAuth();
+  const { isLoading: authLoading, isVerified: authVerified } = useAdminAuth("إدارة الطلاب")
+
+  if (authLoading || !authVerified) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#fafaf9]">
+        <SiteLoader size="md" />
+      </div>
+    )
+  }
+
   const [achievements, setAchievements] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   useEffect(() => {

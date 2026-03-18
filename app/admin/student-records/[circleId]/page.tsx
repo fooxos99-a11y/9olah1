@@ -18,7 +18,15 @@ interface Student {
 }
 
 export default function CircleAttendancePage() {
-  useAdminAuth();
+  const { isLoading: authLoading, isVerified: authVerified } = useAdminAuth("إدارة الطلاب")
+
+  if (authLoading || !authVerified) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#fafaf9]">
+        <SiteLoader size="md" />
+      </div>
+    )
+  }
 
     // تحديث بيانات الطلاب
     const fetchStudents = async (circleName: string) => {

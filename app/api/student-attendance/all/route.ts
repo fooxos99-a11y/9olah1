@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   // جلب جميع سجلات الحضور
   const { data: attendance, error: attendanceError } = await supabase
     .from("attendance_records")
-    .select("id, student_id, date, status, created_at, notes")
+    .select("id, student_id, date, status, created_at, notes, is_compensation")
 
   if (attendanceError) {
     return NextResponse.json({ error: "فشل في جلب سجلات الحضور" }, { status: 500 })
@@ -49,12 +49,19 @@ export async function GET(request: Request) {
 
   // لكل الطلاب، ابحث عن سجل حضور في التاريخ المطلوب، وأضف التقييمات إن وجدت
   const records = students.map((student) => {
-    const rec = (attendance || []).find((r) => r.student_id === student.id && r.date === selectedDate)
+    const sameDayRecords = (attendance || []).filter((r) => r.student_id === student.id && r.date === selectedDate)
+    const rec = sameDayRecords.find((r) => !r.is_compensation) || sameDayRecords[0]
+    const compensationRecords = sameDayRecords.filter((r) => r.is_compensation)
     let evalRec = null;
     if (rec) {
       evalRec = (evaluations || []).find((e) => e.attendance_record_id === rec.id)
     }
     if (rec) {
+      const notes = [
+        rec.notes ?? null,
+        compensationRecords.length > 0 ? `نجح بتعويض${compensationRecords.length > 1 ? ` (${compensationRecords.length})` : ""}` : null,
+      ].filter(Boolean).join(" | ") || null
+
       return {
         id: rec.id,
         student_id: student.id,
@@ -64,7 +71,8 @@ export async function GET(request: Request) {
         attendance_date: rec.date,
         status: rec.status,
         created_at: rec.created_at,
-        notes: rec.notes ?? null,
+        notes,
+        is_compensation: !!rec.is_compensation || compensationRecords.length > 0,
         hafiz_level: evalRec?.hafiz_level ?? null,
         tikrar_level: evalRec?.tikrar_level ?? null,
         samaa_level: evalRec?.samaa_level ?? null,
@@ -93,6 +101,7 @@ export async function GET(request: Request) {
         status: null,
         created_at: null,
         notes: null,
+        is_compensation: false,
         hafiz_level: null,
         tikrar_level: null,
         samaa_level: null,

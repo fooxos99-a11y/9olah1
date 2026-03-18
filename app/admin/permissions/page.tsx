@@ -19,6 +19,7 @@ const DASHBOARD_ACTIONS = [
   { key: "التقارير",                   icon: FileText },
   { key: "الإرسال إلى أولياء الأمور", icon: MessageSquare },
   { key: "الإشعارات",                 icon: Bell },
+  { key: "الغيابات",                  icon: Calendar },
   { key: "إدارة المسار",              icon: Map },
   { key: "إنهاء الفصل",               icon: Calendar },
   { key: "إدارة الألعاب",             icon: Zap },

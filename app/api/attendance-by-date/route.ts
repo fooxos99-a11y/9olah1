@@ -1,8 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { ensureTeacherScope, requireRoles } from "@/lib/auth/guards"
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireRoles(request, ["teacher", "deputy_teacher", "admin", "supervisor"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
+    const { session } = auth
     const searchParams = request.nextUrl.searchParams
     const date = searchParams.get("date")
     const circle = searchParams.get("circle")
@@ -11,11 +18,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Date is required" }, { status: 400 })
     }
 
-    console.log("[v0] Fetching attendance records for date:", date, "circle:", circle)
+    const teacherScopeError = ensureTeacherScope(session, circle)
+    if (teacherScopeError) {
+      return teacherScopeError
+    }
 
     const supabase = await createClient()
 
-    let query = supabase.from("attendance_records").select("id, student_id, status, date").eq("date", date)
+    let query = supabase.from("attendance_records").select("id, student_id, status, date, notes, is_compensation").eq("date", date)
 
     if (circle) {
       query = query.eq("halaqah", circle)
@@ -45,6 +55,8 @@ export async function GET(request: NextRequest) {
           student_name: student?.name || "Unknown",
           date: record.date,
           status: record.status,
+          notes: record.notes ?? null,
+          is_compensation: !!record.is_compensation,
           hafiz_level: evaluations?.hafiz_level || null,
           tikrar_level: evaluations?.tikrar_level || null,
           samaa_level: evaluations?.samaa_level || null,
@@ -64,8 +76,6 @@ export async function GET(request: NextRequest) {
         }
       }),
     )
-
-    console.log("[v0] Found", formattedRecords.length, "records for date:", date, "circle:", circle)
 
     const response = NextResponse.json({ records: formattedRecords, count: formattedRecords.length })
     response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")

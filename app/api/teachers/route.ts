@@ -1,14 +1,24 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import { isPrivilegedRole, requireRoles } from "@/lib/auth/guards"
 
 export async function GET(request: Request) {
   try {
+    const auth = await requireRoles(request, ["teacher", "deputy_teacher", "admin", "supervisor"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
+    const { session } = auth
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const accountNumber = searchParams.get("account_number")
 
-    // If account_number is provided, fetch specific teacher
     if (accountNumber) {
+      if (!isPrivilegedRole(session.role) && String(session.accountNumber) !== String(accountNumber)) {
+        return NextResponse.json({ error: "لا يمكنك الوصول إلى بيانات معلم آخر" }, { status: 403 })
+      }
+
       const { data: teachers, error } = await supabase
         .from("users")
         .select("*")
@@ -39,7 +49,21 @@ export async function GET(request: Request) {
       }, { status: 200 })
     }
 
-    // Fetch all users with role 'teacher' or 'deputy_teacher'
+    if (!isPrivilegedRole(session.role)) {
+      return NextResponse.json({
+        teachers: [{
+          id: session.id,
+          name: session.name,
+          accountNumber: session.accountNumber,
+          idNumber: "",
+          halaqah: session.halaqah || "",
+          studentCount: 0,
+          phoneNumber: "",
+          role: session.role,
+        }],
+      }, { status: 200 })
+    }
+
     const { data: teachers, error } = await supabase
       .from("users")
       .select("*")
@@ -89,6 +113,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireRoles(request, ["admin", "supervisor"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const supabase = await createClient()
     const body = await request.json()
     const { name, id_number, account_number, halaqah, role } = body
@@ -152,6 +181,11 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const auth = await requireRoles(request, ["admin", "supervisor"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const teacherId = searchParams.get("id")
@@ -176,6 +210,11 @@ export async function DELETE(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const auth = await requireRoles(request, ["admin", "supervisor"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const supabase = await createClient()
     const body = await request.json()
     const { id, name, phone_number, id_number, account_number, halaqah, role } = body

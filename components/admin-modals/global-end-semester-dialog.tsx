@@ -17,7 +17,7 @@ export function GlobalEndSemesterDialog() {
     setIsOpen(open)
     if (!open) {
       setTimeout(() => {
-        router.push("/admin/dashboard")
+        router.push("/admin")
       }, 200)
     }
   }

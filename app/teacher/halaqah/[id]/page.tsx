@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { useAlertDialog } from "@/hooks/use-confirm-dialog"
 import { SiteLoader } from "@/components/ui/site-loader"
-import { getActivePlanDayNumber, getPlanSessionContent, getPlanSupportSessionContent, resolvePlanTotalDays, resolvePlanTotalPages, SURAHS } from "@/lib/quran-data"
+import { formatQuranRange, getActivePlanDayNumber, getPlanSessionContent, getPlanSupportSessionContent, resolvePlanTotalDays, resolvePlanTotalPages, SURAHS } from "@/lib/quran-data"
 import { type AttendanceStatus, isEvaluatedAttendance, isNonEvaluatedAttendance } from "@/lib/student-attendance"
 
 type EvaluationLevel = "excellent" | "very_good" | "good" | "not_completed" | null
@@ -19,6 +19,7 @@ type EvaluationType = "hafiz" | "tikrar" | "samaa" | "rabet"
 type ContentfulEvaluationType = "hafiz" | "samaa" | "rabet"
 
 interface EvaluationContent {
+	text?: string
 	fromSurah?: string
 	fromVerse?: string
 	toSurah?: string
@@ -144,11 +145,7 @@ const formatReadingDetails = (details?: EvaluationContent | null) => {
 		return details.text
 	}
 
-	if (!details?.fromSurah || !details?.fromVerse || !details?.toSurah || !details?.toVerse) {
-		return null
-	}
-
-	return `من سورة ${details.fromSurah} آية ${details.fromVerse} إلى سورة ${details.toSurah} آية ${details.toVerse}`
+	return formatQuranRange(details?.fromSurah, details?.fromVerse, details?.toSurah, details?.toVerse)
 }
 
 const buildSavedReadingDetails = (record: SavedAttendanceRecord): ReadingDetails => {
@@ -262,16 +259,29 @@ export default function HalaqahManagement() {
 	const showAlert = useAlertDialog()
 
 	useEffect(() => {
-		const loggedIn = localStorage.getItem("isLoggedIn") === "true"
-		const userRole = localStorage.getItem("userRole")
-		const accountNumber = localStorage.getItem("accountNumber")
+		const bootstrapAuth = async () => {
+			try {
+				const response = await fetch("/api/auth", { cache: "no-store" })
+				if (!response.ok) {
+					router.push("/login")
+					return
+				}
 
-		const allowedRoles = ["teacher", "deputy_teacher", "admin", "supervisor"];
-		if (!loggedIn || !allowedRoles.includes(userRole || "")) {
-			router.push("/login")
-		} else {
-			fetchTeacherData(accountNumber || "")
+				const data = await response.json()
+				const accountNumber = data.user?.accountNumber || localStorage.getItem("accountNumber") || ""
+
+				if (!accountNumber) {
+					router.push("/login")
+					return
+				}
+
+				fetchTeacherData(String(accountNumber))
+			} catch {
+				router.push("/login")
+			}
 		}
+
+		void bootstrapAuth()
 	}, [router])
 
 	useEffect(() => {
@@ -768,7 +778,7 @@ export default function HalaqahManagement() {
 			if (data.success) {
 				await loadMissedDays(compStudentId)
 				await refreshStudentPlanState(compStudentId)
-				await showAlert(`تم تعويض المقطع بنجاح وتم إضافة ${data.pointsAdded} نقطة للطالب.`, "نجاح")
+				await showAlert("تم تسجيل التعويض بنجاح.", "نجاح")
 			} else {
 				await showAlert(data.error || "خطأ في التعويض", "خطأ")
 			}
@@ -1019,7 +1029,7 @@ export default function HalaqahManagement() {
 																	variant="outline"
 																	onClick={() => openCompDialog(student.id)}
 																	title="تعويض الحفظ"
-																	disabled={student.savedToday}
+																	disabled={!student.hasPlan}
 																	className="h-5 w-5 rounded-md p-0 transition-all flex-shrink-0 border-[#D4AF37]/80 text-neutral-600 hover:bg-[#D4AF37]/10 hover:border-[#D4AF37] hover:text-neutral-800 focus-visible:bg-[#D4AF37]/10 focus-visible:border-[#D4AF37] focus-visible:text-neutral-800 focus-visible:ring-[#D4AF37]/30"
 																>
 																	<RotateCcw className="w-3 h-3" />

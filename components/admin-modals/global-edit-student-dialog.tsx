@@ -27,6 +27,7 @@ interface Student {
 	name: string
 	guardian_phone?: string | null
 	id_number?: string | null
+	account_number?: string | number | null
 	halaqah?: string | null
 	circle_name?: string | null
 }
@@ -46,6 +47,7 @@ export function GlobalEditStudentDialog() {
 	const [editingStudent, setEditingStudent] = useState<Student | null>(null)
 	const [editGuardianPhone, setEditGuardianPhone] = useState("")
 	const [editStudentIdNumber, setEditStudentIdNumber] = useState("")
+	const [editStudentAccountNumber, setEditStudentAccountNumber] = useState("")
 	const [isSubmitting, setIsSubmitting] = useState(false)
 
 	useEffect(() => {
@@ -57,7 +59,7 @@ export function GlobalEditStudentDialog() {
 			const supabase = createClient()
 			const [circlesRes, studentsRes] = await Promise.all([
 				supabase.from("circles").select("id, name").order("created_at", { ascending: false }),
-				supabase.from("students").select("id, name, guardian_phone, id_number, halaqah"),
+				supabase.from("students").select("id, name, guardian_phone, id_number, account_number, halaqah"),
 			])
 
 			if (!circlesRes.error && circlesRes.data) {
@@ -95,6 +97,7 @@ export function GlobalEditStudentDialog() {
 		setEditingStudent(student)
 		setEditGuardianPhone(student?.guardian_phone || "")
 		setEditStudentIdNumber(student?.id_number || "")
+		setEditStudentAccountNumber(student?.account_number != null ? String(student.account_number) : "")
 	}
 
 	const handleSaveStudentEdit = async () => {
@@ -111,6 +114,7 @@ export function GlobalEditStudentDialog() {
 					id: editingStudent.id,
 					guardian_phone: editGuardianPhone,
 					id_number: editStudentIdNumber,
+					account_number: editStudentAccountNumber.trim() || null,
 				}),
 			})
 
@@ -131,6 +135,7 @@ export function GlobalEditStudentDialog() {
 			setSelectedCircleForEdit("")
 			setEditGuardianPhone("")
 			setEditStudentIdNumber("")
+			setEditStudentAccountNumber("")
 			await fetchData()
 			handleClose(false)
 		} catch (error) {
@@ -168,6 +173,7 @@ export function GlobalEditStudentDialog() {
 								setEditingStudent(null)
 								setEditGuardianPhone("")
 								setEditStudentIdNumber("")
+								setEditStudentAccountNumber("")
 							}}
 							dir="rtl"
 						>
@@ -206,6 +212,16 @@ export function GlobalEditStudentDialog() {
 									value={editStudentIdNumber}
 									onChange={(event) => setEditStudentIdNumber(event.target.value)}
 									placeholder="أدخل رقم الهوية"
+									className="text-sm"
+									dir="ltr"
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label className="text-sm font-medium text-neutral-600">رقم الحساب</Label>
+								<Input
+									value={editStudentAccountNumber}
+									onChange={(event) => setEditStudentAccountNumber(event.target.value)}
+									placeholder="أدخل رقم الحساب"
 									className="text-sm"
 									dir="ltr"
 								/>

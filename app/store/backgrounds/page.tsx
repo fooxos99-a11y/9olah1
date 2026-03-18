@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
+import { ThemeRankPreview } from "@/components/theme-rank-preview"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { SiteLoader } from "@/components/ui/site-loader"
@@ -22,7 +23,7 @@ const BACKGROUNDS = [
   {
     id: "theme_bats",
     name: "أسود",
-    price: 1000,
+    price: 3000,
     themeValue: "bats",
     gradient: "linear-gradient(135deg, #000000 0%, #1a1a1a 100%)",
     isFree: false,
@@ -30,7 +31,7 @@ const BACKGROUNDS = [
   {
     id: "theme_fire",
     name: "برتقالي",
-    price: 1000,
+    price: 2000,
     themeValue: "fire",
     gradient: "linear-gradient(135deg, #ea580c 0%, #dc2626 100%)",
     isFree: false,
@@ -38,7 +39,7 @@ const BACKGROUNDS = [
   {
     id: "theme_snow",
     name: "سماوي",
-    price: 1000,
+    price: 2000,
     themeValue: "snow",
     gradient: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
     isFree: false,
@@ -54,7 +55,7 @@ const BACKGROUNDS = [
   {
     id: "theme_royal",
     name: "أرجواني",
-    price: 1000,
+    price: 2000,
     themeValue: "royal",
     gradient: "linear-gradient(135deg, #9333ea 0%, #a855f7 50%, #d946ef 100%)",
     isFree: false,
@@ -62,7 +63,7 @@ const BACKGROUNDS = [
   {
     id: "theme_dawn",
     name: "الفجر",
-    price: 2500,
+    price: 3000,
     themeValue: "dawn",
     gradient: "linear-gradient(135deg, #fbbf24 0%, #fcd34d 20%, #f59e0b 40%, #d97706 60%, #b45309 80%, #78350f 100%)",
     isFree: false,
@@ -70,7 +71,7 @@ const BACKGROUNDS = [
   {
     id: "theme_galaxy",
     name: "المجرة",
-    price: 2500,
+    price: 3000,
     themeValue: "galaxy",
     gradient: "linear-gradient(135deg, #1e1b4b 0%, #4c1d95 20%, #7c3aed 40%, #a78bfa 60%, #c4b5fd 80%, #ddd6fe 100%)",
     isFree: false,
@@ -78,7 +79,7 @@ const BACKGROUNDS = [
   {
     id: "theme_sunset_gold",
     name: "الغروب الذهبي",
-    price: 2500,
+    price: 1000,
     themeValue: "sunset_gold",
     gradient: "linear-gradient(135deg, #fef3c7 0%, #fcd34d 20%, #f59e0b 40%, #d97706 60%, #b45309 80%, #78350f 100%)",
     isFree: false,
@@ -117,10 +118,10 @@ export default function BackgroundsPage() {
   const fetchStudentData = async () => {
     try {
       const accountNumber = localStorage.getItem("accountNumber")
-      const response = await fetch(`/api/students`)
+      const response = await fetch(`/api/students?account_number=${accountNumber}`)
       const data = await response.json()
 
-      const student = data.students?.find((s: any) => s.account_number === Number(accountNumber))
+      const student = data.students?.[0]
 
       if (student) {
         setStudentId(student.id)
@@ -339,71 +340,7 @@ export default function BackgroundsPage() {
 
     const isPremium = ["dawn", "galaxy", "sunset_gold", "ocean_deep"].includes(themeValue)
 
-    if (isPremium) {
-      return (
-        <div
-          className="relative w-full h-32 rounded-xl overflow-hidden border-[3px]"
-          style={{
-            backgroundColor: "rgba(245, 245, 240, 0.95)",
-            borderColor: theme.primary,
-            backgroundImage: `
-              linear-gradient(90deg, ${theme.primary}08 1px, transparent 1px),
-              linear-gradient(${theme.primary}08 1px, transparent 1px),
-              radial-gradient(circle at 10% 20%, ${theme.primary}05 0%, transparent 50%)
-            `,
-            backgroundSize: "20px 20px, 20px 20px, 100% 100%",
-          }}
-        >
-          {[...Array(20)].map((_, i) => (
-            // إصلاح مشكلة hydration mismatch: توليد القيم عشوائية فقط على العميل
-            <RandomStar key={i} />
-          ))}
-          <svg className="absolute inset-0 w-full h-full opacity-20" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern id={`lines-${themeValue}`} x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-                <line x1="0" y1="0" x2="20" y2="20" stroke="white" strokeWidth="1" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill={`url(#lines-${themeValue})`} />
-          </svg>
-          <div className="absolute top-2 right-2 w-8 h-8 rounded-full border-2 border-white opacity-30" />
-          <div className="absolute bottom-2 left-2 w-6 h-6 rounded-full border-2 border-white opacity-40" />
-          <div className="absolute top-1/2 left-1/4 w-4 h-4 rounded-full bg-white opacity-20" />
-          <div className="absolute inset-2 border border-white/30 rounded-lg" />
-          <div
-            className="absolute top-0 left-0 w-full h-2"
-            style={{
-              backgroundImage: `linear-gradient(to right, ${theme.primary}, ${theme.secondary}, ${theme.primary})`,
-            }}
-          />
-          <style jsx>{`
-            @keyframes twinkle {
-              0%, 100% { opacity: 0.3; transform: scale(1); }
-              50% { opacity: 0.8; transform: scale(1.2); }
-            }
-          `}</style>
-        </div>
-      )
-    }
-
-    return (
-      <div
-        className="relative w-full h-32 rounded-xl overflow-hidden border-2"
-        style={{
-          backgroundColor: `${theme.primary}10`,
-          borderColor: `${theme.primary}50`,
-          backgroundImage: `radial-gradient(circle at 20% 80%, ${theme.primary}08 0%, transparent 50%),
-                           radial-gradient(circle at 80% 20%, ${theme.secondary}06 0%, transparent 50%)`,
-        }}
-      >
-        <div
-          className="absolute top-0 left-0 w-full h-2"
-          style={{
-            backgroundImage: `linear-gradient(to right, ${theme.primary}, ${theme.secondary}, ${theme.tertiary})`,
-          }}
-        />
-      </div>
-    )
+    return <ThemeRankPreview primary={theme.primary} secondary={theme.secondary} tertiary={theme.tertiary} premium={isPremium} />
   }
 
   if (isLoading) {
@@ -445,7 +382,9 @@ export default function BackgroundsPage() {
           </button>
           <h1 className="text-4xl font-bold text-[#1a2332] mb-4">الخلفيات</h1>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {BACKGROUNDS.map((background, index) => {
+            {[...BACKGROUNDS]
+              .sort((a, b) => a.price - b.price || a.name.localeCompare(b.name, "ar"))
+              .map((background, index) => {
               const isOwned = purchases.includes(background.id) || background.isFree
               const canAfford = background.isFree || studentPoints >= background.price
               const isActive = activeTheme === background.themeValue

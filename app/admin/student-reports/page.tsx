@@ -86,9 +86,9 @@ export default function StudentReportsPage() {
 
       if (data.records && Array.isArray(data.records)) {
         const reports: StudentReport[] = data.records.map((record: any) => ({
-          id: record.student_id,
+          id: `${record.student_id}-${record.date}-${record.is_compensation ? "comp" : "main"}`,
           name: record.student_name,
-          attendance_status: translateAttendanceStatus(record.status) || "—",
+          attendance_status: record.is_compensation ? "نجح بتعويض" : (translateAttendanceStatus(record.status) || "—"),
           hafiz_level: getLevelDisplay(record.hafiz_level),
           tikrar_level: getLevelDisplay(record.tikrar_level),
           samaa_level: getLevelDisplay(record.samaa_level),
@@ -170,7 +170,7 @@ export default function StudentReportsPage() {
         <div className="container mx-auto px-4">
           <div className="mb-8 flex items-center gap-4">
             <Button
-              onClick={() => router.push("/admin/dashboard")}
+              onClick={() => router.push("/admin")}
               variant="outline"
               className="border-2 border-[#d8a355]"
             >
@@ -291,6 +291,8 @@ export default function StudentReportsPage() {
                                       ? "bg-green-600"
                                       : report.attendance_status === "متأخر"
                                         ? "bg-orange-600"
+                                      : report.attendance_status === "نجح بتعويض"
+                                        ? "bg-emerald-700"
                                       : report.attendance_status === "غائب"
                                         ? "bg-red-600"
                                         : "bg-yellow-600"

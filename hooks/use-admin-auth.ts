@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -27,7 +27,7 @@ export function useAdminAuth(permissionKey?: string): AdminAuthState {
     isFullAccess: false,
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false;
 
     async function verify() {

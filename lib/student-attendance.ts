@@ -39,6 +39,10 @@ export function calculateEvaluationLevelPoints(level: EvaluationLevelValue): num
   }
 }
 
+export function isPassingMemorizationLevel(level: EvaluationLevelValue) {
+  return !!level && level !== "not_completed"
+}
+
 export function calculateTotalEvaluationPoints(levels: {
   hafiz_level?: EvaluationLevelValue
   tikrar_level?: EvaluationLevelValue

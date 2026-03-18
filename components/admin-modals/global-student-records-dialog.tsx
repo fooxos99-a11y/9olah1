@@ -89,7 +89,11 @@ export function GlobalStudentRecordsDialog() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, isCompensation?: boolean) => {
+    if (isCompensation) {
+      return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"><CheckCircle2 className="w-3.5 h-3.5" />نجح بتعويض</span>;
+    }
+
     switch (status) {
       case "present":
         return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-200"><CheckCircle2 className="w-3.5 h-3.5" />حضور</span>;
@@ -198,7 +202,7 @@ export function GlobalStudentRecordsDialog() {
                       {records.map((record) => (
                         <tr key={record.id} className="hover:bg-[#fcfbf9] transition-colors">
                           <td className="px-3 py-2.5 whitespace-nowrap text-xs tabular-nums text-neutral-800">{new Date(record.date).toLocaleDateString("en-GB")}</td>
-                          <td className="px-3 py-2.5 whitespace-nowrap text-center">{getStatusBadge(record.status)}</td>
+                          <td className="px-3 py-2.5 whitespace-nowrap text-center">{getStatusBadge(record.status, record.is_compensation)}</td>
                           <td className="px-3 py-2.5 whitespace-nowrap text-center text-xs">
                             <div className="flex flex-col items-center gap-0.5">
                               {getLevelLabel(record.hafiz_level)}

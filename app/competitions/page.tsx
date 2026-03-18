@@ -58,35 +58,16 @@ const games = [
 ]
 
 export default function CompetitionsPage() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [userRole, setUserRole] = useState<string | null>(null)
   const [loadingGameId, setLoadingGameId] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
-    const loggedIn = localStorage.getItem("isLoggedIn") === "true"
-    const role = localStorage.getItem("userRole")
-
-    if (!loggedIn || !role || role === "student") {
-      router.push("/login")
-      return
-    }
-
-    setIsLoggedIn(true)
-    setUserRole(role)
-  }, [router])
-
-  useEffect(() => {
-    if (!isLoggedIn) {
-      return
-    }
-
     games.forEach((game) => {
       if (game.available) {
         router.prefetch(game.path)
       }
     })
-  }, [isLoggedIn, router])
+  }, [router])
 
   const handleGameNavigation = (path: string, gameId: string) => {
     if (loadingGameId) {
@@ -97,10 +78,6 @@ export default function CompetitionsPage() {
     requestAnimationFrame(() => {
       router.push(path)
     })
-  }
-
-  if (!isLoggedIn) {
-    return null
   }
 
   return (
