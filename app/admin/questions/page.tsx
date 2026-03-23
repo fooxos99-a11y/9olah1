@@ -65,12 +65,53 @@ export default function QuestionsDatabase() {
   const [pointsValue, setPointsValue] = useState(200)
 
   useEffect(() => {
+    if (!authVerified) {
+      return
+    }
+
     fetchCategories()
-  }, [])
+  }, [authVerified])
+
+  const ensureAdminSessionCookie = async () => {
+    const accountNumber = localStorage.getItem("accountNumber")
+
+    if (!accountNumber) {
+      return false
+    }
+
+    const response = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ account_number: accountNumber }),
+    })
+
+    return response.ok
+  }
+
+  const adminFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    let response = await fetch(input, init)
+
+    if (response.status !== 401) {
+      return response
+    }
+
+    const restored = await ensureAdminSessionCookie()
+    if (!restored) {
+      return response
+    }
+
+    response = await fetch(input, init)
+    return response
+  }
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch("/api/categories")
+      const response = await fetch("/api/categories", { cache: "no-store" })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch categories: ${response.status}`)
+      }
+
       const data = await response.json()
       setCategories(Array.isArray(data) ? data : [])
     } catch (error) {
@@ -95,13 +136,13 @@ export default function QuestionsDatabase() {
     if (!categoryName.trim()) return
     try {
       if (editingCategory) {
-        await fetch("/api/categories", {
+        await adminFetch("/api/admin/categories", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: editingCategory.id, name: categoryName }),
         })
       } else {
-        await fetch("/api/categories", {
+        await adminFetch("/api/admin/categories", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: categoryName }),
@@ -119,7 +160,7 @@ export default function QuestionsDatabase() {
     if (!questionText.trim() || !answerText.trim()) return
     try {
       if (editingQuestion) {
-        await fetch("/api/category-questions", {
+        await adminFetch("/api/admin/category-questions", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -130,7 +171,7 @@ export default function QuestionsDatabase() {
           }),
         })
       } else {
-        await fetch("/api/category-questions", {
+        await adminFetch("/api/admin/category-questions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -153,9 +194,9 @@ export default function QuestionsDatabase() {
     if (!deleteItem) return
     try {
       if (deleteItem.type === "category") {
-        await fetch(`/api/categories?id=${deleteItem.id}`, { method: "DELETE" })
+        await adminFetch(`/api/admin/categories?id=${deleteItem.id}`, { method: "DELETE" })
       } else {
-        await fetch(`/api/category-questions?id=${deleteItem.id}`, { method: "DELETE" })
+        await adminFetch(`/api/admin/category-questions?id=${deleteItem.id}`, { method: "DELETE" })
       }
       await fetchCategories()
       setShowDeleteDialog(false)

@@ -1,6 +1,7 @@
-import { createClient } from "@/lib/supabase-server"
-import { createAdminClient, hasMatchingServiceRoleConfig } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
+import { requireAdminSession } from "@/lib/auth/admin"
+import { createAdminClient, hasMatchingServiceRoleConfig } from "@/lib/supabase/admin"
+import { createClient } from "@/lib/supabase-server"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -23,6 +24,10 @@ type CategoryQuestionRow = {
 }
 
 async function getReadCategoriesClient() {
+  return createClient()
+}
+
+async function getWriteCategoriesClient() {
   if (hasMatchingServiceRoleConfig()) {
     return createAdminClient()
   }
@@ -30,10 +35,14 @@ async function getReadCategoriesClient() {
   return createClient()
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await requireAdminSession(request)
+  if ("response" in auth) {
+    return auth.response
+  }
+
   try {
     const supabase = await getReadCategoriesClient()
-
     const { data: categories, error } = await supabase
       .from("categories")
       .select("id, name, created_at, updated_at")
@@ -73,17 +82,19 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error("Error fetching categories:", error)
-    return NextResponse.json(
-      { error: "Failed to fetch categories" },
-      { status: 500 }
-    )
+    console.error("Error fetching admin categories:", error)
+    return NextResponse.json({ error: "Failed to fetch categories" }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAdminSession(request)
+  if ("response" in auth) {
+    return auth.response
+  }
+
   try {
-    const supabase = await createClient()
+    const supabase = await getWriteCategoriesClient()
     const { name } = await request.json()
 
     const { data, error } = await supabase
@@ -96,17 +107,19 @@ export async function POST(request: Request) {
 
     return NextResponse.json(data)
   } catch (error) {
-    console.error("Error creating category:", error)
-    return NextResponse.json(
-      { error: "Failed to create category" },
-      { status: 500 }
-    )
+    console.error("Error creating admin category:", error)
+    return NextResponse.json({ error: "Failed to create category" }, { status: 500 })
   }
 }
 
 export async function PUT(request: Request) {
+  const auth = await requireAdminSession(request)
+  if ("response" in auth) {
+    return auth.response
+  }
+
   try {
-    const supabase = await createClient()
+    const supabase = await getWriteCategoriesClient()
     const { id, name } = await request.json()
 
     const { data, error } = await supabase
@@ -120,17 +133,19 @@ export async function PUT(request: Request) {
 
     return NextResponse.json(data)
   } catch (error) {
-    console.error("Error updating category:", error)
-    return NextResponse.json(
-      { error: "Failed to update category" },
-      { status: 500 }
-    )
+    console.error("Error updating admin category:", error)
+    return NextResponse.json({ error: "Failed to update category" }, { status: 500 })
   }
 }
 
 export async function DELETE(request: Request) {
+  const auth = await requireAdminSession(request)
+  if ("response" in auth) {
+    return auth.response
+  }
+
   try {
-    const supabase = await createClient()
+    const supabase = await getWriteCategoriesClient()
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")
 
@@ -144,10 +159,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error deleting category:", error)
-    return NextResponse.json(
-      { error: "Failed to delete category" },
-      { status: 500 }
-    )
+    console.error("Error deleting admin category:", error)
+    return NextResponse.json({ error: "Failed to delete category" }, { status: 500 })
   }
 }
