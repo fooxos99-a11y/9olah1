@@ -64,6 +64,11 @@ const emptyForm: FormState = {
   difficulty: "easy",
 }
 
+const primaryActionClass = "bg-violet-600 hover:bg-violet-700 text-white"
+const accentIconClass = "text-violet-600"
+const accentBadgeClass = "bg-violet-100 text-violet-700"
+const accentBorderHoverClass = "hover:border-violet-300"
+
 export default function MillionaireQuestionsAdminPage() {
   const { isLoading: authLoading, isVerified: authVerified } = useAdminAuth("إدارة الألعاب")
 
@@ -318,7 +323,7 @@ export default function MillionaireQuestionsAdminPage() {
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 إلغاء
               </Button>
-              <Button onClick={handleSave} className="bg-[#d8a355] hover:bg-[#c89547] text-white" disabled={saving}>
+              <Button onClick={handleSave} className={primaryActionClass} disabled={saving}>
                 {saving ? "جارٍ الحفظ..." : editingQuestion ? "حفظ التعديل" : "إضافة السؤال"}
               </Button>
             </div>
@@ -333,7 +338,7 @@ export default function MillionaireQuestionsAdminPage() {
               <h1 className="text-3xl font-bold text-slate-800">إدارة من سيربح المليون</h1>
               <p className="text-slate-500 mt-2">أضف 5 أسئلة سهلة و5 متوسطة و5 صعبة على الأقل لتعمل اللعبة كاملة.</p>
             </div>
-            <Button onClick={openAddDialog} className="bg-[#d8a355] hover:bg-[#c89547] text-white rounded-full px-6">
+            <Button onClick={openAddDialog} className={`${primaryActionClass} rounded-full px-6`}>
               <Plus className="ml-2 h-5 w-5" />
               إضافة سؤال
             </Button>
@@ -357,11 +362,11 @@ export default function MillionaireQuestionsAdminPage() {
 
           <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-4">
             <div className="flex items-center gap-2 text-slate-800">
-              <BarChart3 className="w-5 h-5 text-[#d8a355]" />
+              <BarChart3 className={`w-5 h-5 ${accentIconClass}`} />
               <h2 className="font-bold">تصفية الأسئلة</h2>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button variant={selectedDifficulty === "all" ? "default" : "outline"} className={selectedDifficulty === "all" ? "bg-[#d8a355] hover:bg-[#c89547]" : ""} onClick={() => setSelectedDifficulty("all")}>الكل</Button>
+              <Button variant={selectedDifficulty === "all" ? "default" : "outline"} className={selectedDifficulty === "all" ? "bg-violet-600 hover:bg-violet-700" : ""} onClick={() => setSelectedDifficulty("all")}>الكل</Button>
               <Button variant={selectedDifficulty === "easy" ? "default" : "outline"} className={selectedDifficulty === "easy" ? "bg-emerald-600 hover:bg-emerald-700" : ""} onClick={() => setSelectedDifficulty("easy")}>سهل</Button>
               <Button variant={selectedDifficulty === "medium" ? "default" : "outline"} className={selectedDifficulty === "medium" ? "bg-amber-600 hover:bg-amber-700" : ""} onClick={() => setSelectedDifficulty("medium")}>متوسط</Button>
               <Button variant={selectedDifficulty === "hard" ? "default" : "outline"} className={selectedDifficulty === "hard" ? "bg-rose-600 hover:bg-rose-700" : ""} onClick={() => setSelectedDifficulty("hard")}>صعب</Button>
@@ -383,15 +388,15 @@ export default function MillionaireQuestionsAdminPage() {
                   const options = [question.option_1, question.option_2, question.option_3, question.option_4]
 
                   return (
-                    <div key={question.id} className="rounded-3xl border border-slate-200 p-5 hover:border-[#d8a355]/40 transition-colors">
+                    <div key={question.id} className={`rounded-3xl border border-slate-200 p-5 ${accentBorderHoverClass} transition-colors`}>
                       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                         <div className="space-y-4 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
-                              <CircleHelp className="w-4 h-4 text-[#d8a355]" />
+                              <CircleHelp className={`w-4 h-4 ${accentIconClass}`} />
                               سؤال {index + 1}
                             </span>
-                            <span className="inline-flex rounded-full bg-[#d8a355]/10 px-3 py-1 text-sm font-semibold text-[#b5862c]">
+                            <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${accentBadgeClass}`}>
                               {difficultyLabels[question.difficulty]}
                             </span>
                           </div>

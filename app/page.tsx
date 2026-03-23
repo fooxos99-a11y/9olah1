@@ -1,16 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
-import { ArrowLeft, CreditCard, Sparkles } from "lucide-react"
+import { ArrowLeft, Sparkles } from "lucide-react"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 export default function Home() {
-  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false)
-
   return (
     <div className="min-h-screen overflow-x-hidden bg-white" dir="rtl">
       <Header />
@@ -36,9 +32,11 @@ export default function Home() {
                   </h1>
                 </div>
                 <div className="flex flex-col justify-center gap-4 sm:flex-row">
-                  <Button size="lg" className="h-14 px-8 text-lg bg-[#7c3aed] text-white hover:bg-[#6d28d9]" onClick={() => setPurchaseDialogOpen(true)}>
-                      اشترك الآن
+                  <Button asChild size="lg" className="h-14 px-8 text-lg bg-[#7c3aed] text-white hover:bg-[#6d28d9]">
+                    <Link href="/competitions">
+                      العب الآن
                       <ArrowLeft className="h-5 w-5" />
+                    </Link>
                   </Button>
                   <Button asChild size="lg" variant="outline" className="h-14 px-8 text-lg border-[#7c3aed]/20 bg-white text-[#6d28d9] hover:bg-[#f5f3ff] hover:text-[#5b21b6]">
                     <Link href="/competitions">استعرض الألعاب</Link>
@@ -55,13 +53,13 @@ export default function Home() {
           <div className="container mx-auto px-4">
             <div className="mb-12 max-w-2xl space-y-3">
               <div className="text-sm font-bold tracking-wide text-[#7c3aed]">لماذا صولة وجولة؟</div>
-              <h2 className="text-3xl font-black text-[#1f1147] md:text-4xl">كل ألعابك في مكان واحد وبسعر واحد!</h2>
+              <h2 className="text-3xl font-black text-[#1f1147] md:text-4xl">كل ألعابك في مكان واحد وبوصول مباشر!</h2>
             </div>
 
             <div className="grid gap-6 md:grid-cols-3">
               <div className="rounded-[1.75rem] border border-[#7c3aed]/10 bg-white p-6">
-                <h3 className="mb-3 text-xl font-black text-[#111827]">ادفع مرة واحدة</h3>
-                <p className="leading-8 text-[#6b7280]">دفعة واحدة فقط وتفتح لك جميع الألعاب في المنصة بدون دفع متكرر لكل لعبة.</p>
+                <h3 className="mb-3 text-xl font-black text-[#111827]">ابدأ مباشرة</h3>
+                <p className="leading-8 text-[#6b7280]">سجل حسابك وابدأ اللعب مباشرة بدون خطوات إضافية تعطل دخولك للألعاب.</p>
               </div>
               <div className="rounded-[1.75rem] border border-[#7c3aed]/10 bg-white p-6">
                 <h3 className="mb-3 text-xl font-black text-[#111827]">آلاف الأسئلة في كل المجالات</h3>
@@ -76,39 +74,6 @@ export default function Home() {
         </section>
 
       </main>
-
-      <Dialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>
-        <DialogContent className="max-w-md rounded-[1.75rem] border-[#7c3aed]/10 bg-white p-0 overflow-hidden" dir="rtl">
-          <div className="bg-[linear-gradient(135deg,#7c3aed,#5b21b6)] px-6 py-6 text-white">
-            <div className="mb-4 inline-flex rounded-2xl bg-white/10 p-3">
-              <CreditCard className="h-5 w-5" />
-            </div>
-            <DialogHeader className="text-right">
-              <DialogTitle className="text-2xl font-black text-white">الاشتراك في صولة وجولة</DialogTitle>
-              <DialogDescription className="mt-2 text-sm leading-7 text-white/80">
-                الاشتراك يفعّل لك كامل المكتبة ويفتح لك جميع الألعاب. نربط هنا لاحقًا بوابة التفعيل الرسمية.
-              </DialogDescription>
-            </DialogHeader>
-          </div>
-
-          <div className="space-y-5 px-6 py-6">
-            <div className="rounded-2xl bg-[#faf7ff] p-4 text-sm leading-7 text-[#5b5570]">
-              نعمل على ربط هذه النافذة مباشرة ببوابة التفعيل الكاملة قريبًا.
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button asChild className="flex-1 bg-[#7c3aed] text-white hover:bg-[#6d28d9]">
-                <Link href="/register" onClick={() => setPurchaseDialogOpen(false)}>
-                  أنشئ حسابك
-                </Link>
-              </Button>
-              <Button variant="outline" className="flex-1 border-[#7c3aed]/20 text-[#6d28d9] hover:bg-[#f5f3ff]" onClick={() => setPurchaseDialogOpen(false)}>
-                إغلاق
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Footer />
     </div>

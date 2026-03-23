@@ -38,16 +38,35 @@ type Category = {
   name: string
 }
 
+type QuestionCategory = {
+  id: string
+  name: string
+}
+
 type Question = {
   id: string
   category_id: string
-  category: {
-    id: string
-    name: string
-  }
+  category?: QuestionCategory | QuestionCategory[] | null
   question: string
   answer: string
 }
+
+function getQuestionCategoryName(question: Question) {
+  if (Array.isArray(question.category)) {
+    return question.category[0]?.name ?? "فئة غير مرتبطة"
+  }
+
+  return question.category?.name ?? "فئة غير مرتبطة"
+}
+
+const primaryActionClass = "bg-violet-600 hover:bg-violet-700 text-white"
+const outlineAccentClass = "border-violet-300 text-violet-700 hover:bg-violet-50"
+const accentIconClass = "text-violet-600"
+const accentFilledTabClass = "bg-violet-600 border-violet-600 text-white shadow-md"
+const accentTabHoverClass = "bg-white border-slate-200 text-slate-600 hover:border-violet-300 hover:text-violet-700"
+const accentBadgeClass = "bg-violet-50 text-violet-700 border-violet-100"
+const accentHoverBorderClass = "hover:border-violet-300"
+const accentGhostActionClass = "text-slate-400 hover:text-violet-700 hover:bg-violet-50 rounded-full"
 
 export default function AuctionQuestionsAdmin() {
   const { isLoading: authLoading, isVerified: authVerified } = useAdminAuth("إدارة الألعاب");
@@ -75,9 +94,10 @@ export default function AuctionQuestionsAdmin() {
       setLoading(true)
       const response = await fetch("/api/auction-questions")
       const data = await response.json()
-      setQuestions(data)
+      setQuestions(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error("Error fetching questions:", error)
+      setQuestions([])
     } finally {
       setLoading(false)
     }
@@ -87,9 +107,10 @@ export default function AuctionQuestionsAdmin() {
     try {
       const response = await fetch("/api/auction-categories")
       const data = await response.json()
-      setCategories(data)
+      setCategories(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error("Error fetching categories:", error)
+      setCategories([])
     }
   }
 
@@ -233,13 +254,13 @@ export default function AuctionQuestionsAdmin() {
               <Button
                 onClick={() => setIsAddCategoryDialogOpen(true)}
                 variant="outline"
-                className="border-[#d8a355] text-[#d8a355] hover:bg-[#d8a355]/5 rounded-full px-6"
+                className={`${outlineAccentClass} rounded-full px-6`}
               >
                 <FolderPlus className="ml-2 w-5 h-5" /> إضافة فئة
               </Button>
               <Button
                 onClick={() => setIsAddDialogOpen(true)}
-                className="bg-[#d8a355] hover:bg-[#c89547] text-white shadow-md rounded-full px-6"
+                className={`${primaryActionClass} shadow-md rounded-full px-6`}
               >
                 <MessageSquarePlus className="ml-2 w-5 h-5" /> إضافة سؤال جديد
               </Button>
@@ -249,7 +270,7 @@ export default function AuctionQuestionsAdmin() {
           {/* قسم تصفية الفئات (Tabs style) */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div className="flex items-center gap-2 mb-4">
-              <LayoutGrid className="text-[#d8a355] w-5 h-5" />
+              <LayoutGrid className={`w-5 h-5 ${accentIconClass}`} />
               <h2 className="text-lg font-semibold text-slate-800">الفئات</h2>
             </div>
             
@@ -258,8 +279,8 @@ export default function AuctionQuestionsAdmin() {
                 onClick={() => setSelectedCategoryId("all")}
                 className={`px-5 py-2 rounded-full font-medium text-sm transition-all border ${
                   selectedCategoryId === "all"
-                    ? 'bg-[#d8a355] border-[#d8a355] text-white shadow-md'
-                    : 'bg-white border-slate-200 text-slate-600 hover:border-[#d8a355] hover:text-[#d8a355]'
+                    ? accentFilledTabClass
+                    : accentTabHoverClass
                 }`}
               >
                 الكل
@@ -270,8 +291,8 @@ export default function AuctionQuestionsAdmin() {
                     onClick={() => setSelectedCategoryId(category.id)}
                     className={`px-5 py-2 rounded-full font-medium text-sm transition-all border ${
                       selectedCategoryId === category.id
-                        ? 'bg-[#d8a355] border-[#d8a355] text-white shadow-md'
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-[#d8a355] hover:text-[#d8a355]'
+                        ? accentFilledTabClass
+                        : accentTabHoverClass
                     }`}
                   >
                     {category.name}
@@ -300,12 +321,12 @@ export default function AuctionQuestionsAdmin() {
                   .map((question) => (
                     <div
                       key={question.id}
-                      className="group bg-white rounded-2xl shadow-sm border border-slate-200 p-6 transition-all hover:shadow-md hover:border-[#d8a355]/40"
+                      className={`group bg-white rounded-2xl shadow-sm border border-slate-200 p-6 transition-all hover:shadow-md ${accentHoverBorderClass}`}
                     >
                       <div className="flex justify-between items-start gap-4">
                         <div className="flex-1 space-y-3">
-                          <div className="inline-flex items-center px-3 py-1 bg-amber-50 text-[#d8a355] text-xs font-bold rounded-lg border border-amber-100">
-                            {question.category.name}
+                          <div className={`inline-flex items-center px-3 py-1 text-xs font-bold rounded-lg border ${accentBadgeClass}`}>
+                            {getQuestionCategoryName(question)}
                           </div>
                           
                           <div className="flex items-start gap-3">
@@ -316,7 +337,7 @@ export default function AuctionQuestionsAdmin() {
                           </div>
                           
                           <div className="flex items-start gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            <CheckCircle2 className="w-5 h-5 text-[#d8a355] mt-0.5 shrink-0" />
+                            <CheckCircle2 className={`w-5 h-5 mt-0.5 shrink-0 ${accentIconClass}`} />
                             <p className="text-slate-600">
                               <span className="font-bold text-slate-800 ml-1">الإجابة:</span> {question.answer}
                             </p>
@@ -331,7 +352,7 @@ export default function AuctionQuestionsAdmin() {
                             }}
                             size="icon"
                             variant="ghost"
-                            className="text-slate-400 hover:text-[#d8a355] hover:bg-amber-50 rounded-full"
+                            className={accentGhostActionClass}
                           >
                             <Edit className="w-5 h-5" />
                           </Button>
@@ -357,7 +378,7 @@ export default function AuctionQuestionsAdmin() {
                     <Button 
                       onClick={() => setIsAddDialogOpen(true)}
                       variant="link" 
-                      className="text-[#d8a355] mt-2 font-bold"
+                      className="text-violet-700 mt-2 font-bold"
                     >
                       أضف أول سؤال الآن
                     </Button>
@@ -374,7 +395,7 @@ export default function AuctionQuestionsAdmin() {
         <DialogContent className="rounded-2xl border-0 shadow-2xl p-0 overflow-hidden">
           <DialogHeader className="p-6 bg-slate-50 border-b border-slate-100">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-              <MessageSquarePlus className="text-[#d8a355]" /> إضافة سؤال جديد
+              <MessageSquarePlus className={accentIconClass} /> إضافة سؤال جديد
             </DialogTitle>
           </DialogHeader>
           <div className="p-6 space-y-5">
@@ -415,7 +436,7 @@ export default function AuctionQuestionsAdmin() {
             <div className="flex gap-3 pt-4">
               <Button 
                 onClick={handleAddQuestion} 
-                className="flex-1 h-12 rounded-xl bg-[#d8a355] hover:bg-[#c89547] text-white"
+                className={`${primaryActionClass} flex-1 h-12 rounded-xl`}
                 disabled={!newQuestion.category_id || !newQuestion.question.trim()}
               >
                 حفظ السؤال
@@ -432,7 +453,7 @@ export default function AuctionQuestionsAdmin() {
         <DialogContent className="rounded-2xl border-0 shadow-2xl p-0 overflow-hidden max-w-sm">
           <DialogHeader className="p-6 bg-slate-50 border-b border-slate-100">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <FolderPlus className="text-[#d8a355]" /> إضافة فئة جديدة
+              <FolderPlus className={accentIconClass} /> إضافة فئة جديدة
             </DialogTitle>
           </DialogHeader>
           <div className="p-6 space-y-4">
@@ -447,7 +468,7 @@ export default function AuctionQuestionsAdmin() {
             </div>
             <Button 
               onClick={handleAddCategory} 
-              className="w-full h-12 rounded-xl bg-[#d8a355] hover:bg-[#c89547] text-white"
+              className={`${primaryActionClass} w-full h-12 rounded-xl`}
               disabled={!newCategoryName.trim()}
             >
               إضافة الفئة
@@ -461,7 +482,7 @@ export default function AuctionQuestionsAdmin() {
         <DialogContent className="rounded-2xl border-0 shadow-2xl p-0 overflow-hidden">
           <DialogHeader className="p-6 bg-slate-50 border-b border-slate-100">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-              <Edit className="text-[#d8a355]" /> تعديل السؤال
+              <Edit className={accentIconClass} /> تعديل السؤال
             </DialogTitle>
           </DialogHeader>
           {editingQuestion && (
@@ -499,7 +520,7 @@ export default function AuctionQuestionsAdmin() {
                 />
               </div>
               <div className="flex gap-3 pt-4">
-                <Button onClick={handleUpdateQuestion} className="flex-1 h-12 rounded-xl bg-[#d8a355] hover:bg-[#c89547] text-white">
+                <Button onClick={handleUpdateQuestion} className={`${primaryActionClass} flex-1 h-12 rounded-xl`}>
                   تحديث التغييرات
                 </Button>
                 <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="h-12 rounded-xl px-6">

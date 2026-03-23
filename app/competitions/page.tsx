@@ -26,9 +26,8 @@ type GameCard = {
   patternClass: string
 }
 
-const LIMITED_LIBRARY_GAME_ID = "letter-hive"
 const REGISTERED_LIBRARY_ROLES = ["registered"]
-const FULL_LIBRARY_ROLES = ["subscriber", "admin", "مدير", "سكرتير", "مشرف تعليمي", "مشرف تربوي", "مشرف برامج"]
+const FULL_LIBRARY_ROLES = ["registered", "subscriber", "admin", "مدير", "سكرتير", "مشرف تعليمي", "مشرف تربوي", "مشرف برامج"]
 const LETTER_HIVE_CARD_THEME = {
   surfaceClass:
     "bg-[linear-gradient(135deg,#f0fdf4_0%,#dcfce7_48%,#bbf7d0_100%)] text-[#14532d] border-[#86efac]/60",
@@ -354,7 +353,7 @@ export default function CompetitionsPage() {
     void loadAccess()
 
     games.forEach((game) => {
-      if (game.available && (hasFullAccess || (hasRegisteredAccess && game.id === LIMITED_LIBRARY_GAME_ID))) {
+      if (game.available && (hasFullAccess || hasRegisteredAccess)) {
         router.prefetch(game.path)
       }
     })
@@ -365,10 +364,8 @@ export default function CompetitionsPage() {
       return
     }
 
-    const hasLimitedGameAccess = hasRegisteredAccess && gameId === LIMITED_LIBRARY_GAME_ID
-
-    if (!hasFullAccess && !hasLimitedGameAccess) {
-      router.push(hasRegisteredAccess ? "/contact" : "/register")
+    if (!hasFullAccess && !hasRegisteredAccess) {
+      router.push("/register")
       return
     }
 
@@ -403,7 +400,7 @@ export default function CompetitionsPage() {
           <div className="space-y-6">
             {games.map((game, index) => {
               const isLoading = loadingGameId === game.id
-              const isUnlocked = authResolved && game.available && (hasFullAccess || (hasRegisteredAccess && game.id === LIMITED_LIBRARY_GAME_ID))
+              const isUnlocked = authResolved && game.available && (hasFullAccess || hasRegisteredAccess)
               const isAlternate = index % 2 === 1
               const cardTheme = {
                 surfaceClass: game.surfaceClass,
@@ -444,24 +441,10 @@ export default function CompetitionsPage() {
                           >
                             قريبًا
                           </span>
-                        ) : hasRegisteredAccess && game.id === LIMITED_LIBRARY_GAME_ID ? (
-                          <span
-                            className="inline-flex rounded-full px-3 py-1 text-xs font-bold"
-                            style={{ backgroundColor: `${game.accent}18`, color: game.accent }}
-                          >
-                            تحتاج اشتراك
-                          </span>
-                        ) : !hasRegisteredAccess && !hasFullAccess && game.id === LIMITED_LIBRARY_GAME_ID ? (
-                          <span
-                            className="inline-flex rounded-full px-3 py-1 text-xs font-bold"
-                            style={{ backgroundColor: `${game.accent}18`, color: game.accent }}
-                          >
-                            تحتاج اشتراك
-                          </span>
                         ) : !isUnlocked ? (
                           <span className="inline-flex items-center gap-2 rounded-full bg-white/60 px-3 py-1 text-xs font-bold text-[#7c3aed] backdrop-blur">
                             <Lock className="h-3.5 w-3.5" />
-                            تحتاج اشتراك
+                            سجّل للعب
                           </span>
                         ) : null}
                       </div>
@@ -476,7 +459,7 @@ export default function CompetitionsPage() {
                         ) : (
                           <div className="inline-flex items-center gap-3 rounded-full bg-white/60 px-8 py-4 text-base font-black backdrop-blur group-hover:bg-white/80 md:px-10 md:py-4 md:text-lg">
                             <span>
-                              {!game.available ? "بانتظار الإطلاق" : isUnlocked ? "ادخل اللعبة" : "اشترك لفتح اللعبة"}
+                              {!game.available ? "بانتظار الإطلاق" : isUnlocked ? "ادخل اللعبة" : "سجّل لفتح اللعبة"}
                             </span>
                             {game.available ? <ChevronLeft className="h-5 w-5 transition-transform group-hover:-translate-x-1" /> : null}
                           </div>
@@ -498,8 +481,8 @@ export default function CompetitionsPage() {
               {hasFullAccess
                 ? "كل الألعاب مفتوحة لك الآن، اختر اللعبة التي تناسبك وابدأ مباشرة."
                 : hasRegisteredAccess
-                  ? "حسابك جاهز، اختر ما هو متاح لك وابدأ الآن."
-                  : "أنشئ حسابك أولًا للبدء."}
+                  ? "حسابك جاهز، كل الألعاب متاحة لك الآن."
+                  : "أنشئ حسابك أولًا ثم ابدأ اللعب مباشرة."}
             </p>
           </div>
         </div>
