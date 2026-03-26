@@ -12,11 +12,12 @@ import {
 } from "@/components/ui/dialog"
 import { SiteLoader } from "@/components/ui/site-loader"
 import { Plus, Minus, HelpCircle, Trophy, RotateCcw } from "lucide-react"
-import { GameEntryPanel, GameEntryShell, GameField } from "@/components/games/game-entry-shell"
+import { GameEntryShell } from "@/components/games/game-entry-shell"
 import { GameFinishOverlay } from "@/components/games/game-finish-overlay"
 
 const MIN_TEAMS = 2
 const MAX_TEAMS = 10
+const AUCTION_BG_PATTERN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260' viewBox='0 0 260 260'%3E%3Cg fill='none' stroke='%230f172a' stroke-opacity='0.14' stroke-width='1.1'%3E%3Cpath d='M0 52h260'/%3E%3Cpath d='M0 130h260'/%3E%3Cpath d='M0 208h260'/%3E%3Cpath d='M52 0v260'/%3E%3Cpath d='M130 0v260'/%3E%3Cpath d='M208 0v260'/%3E%3C/g%3E%3Cg fill='%23ffffff' fill-opacity='0.24'%3E%3Ccircle cx='52' cy='52' r='3'/%3E%3Ccircle cx='208' cy='130' r='3'/%3E%3Ccircle cx='130' cy='208' r='2.5'/%3E%3C/g%3E%3C/svg%3E\")"
 
 type Team = {
   name: string
@@ -31,6 +32,30 @@ type Question = {
   }
   question: string
   answer: string
+}
+
+function AuctionPageBackground({ compact = false }: { compact?: boolean }) {
+  return (
+    <>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_14%_18%,rgba(15,23,42,0.22)_0%,rgba(15,23,42,0.09)_18%,rgba(15,23,42,0)_42%),radial-gradient(circle_at_86%_12%,rgba(239,68,68,0.16)_0%,rgba(239,68,68,0.07)_22%,rgba(239,68,68,0)_44%),radial-gradient(circle_at_78%_74%,rgba(16,185,129,0.14)_0%,rgba(16,185,129,0.05)_18%,rgba(16,185,129,0)_38%),radial-gradient(circle_at_24%_78%,rgba(251,191,36,0.14)_0%,rgba(251,191,36,0.05)_18%,rgba(251,191,36,0)_38%)]" />
+      <div className={`absolute -left-24 top-[-140px] rounded-full bg-[radial-gradient(circle,rgba(15,23,42,0.26)_0%,rgba(15,23,42,0.09)_34%,rgba(15,23,42,0)_72%)] blur-[8px] ${compact ? "h-[360px] w-[360px]" : "h-[520px] w-[520px]"}`} />
+      <div className={`absolute -right-28 bottom-[-150px] rounded-full bg-[radial-gradient(circle,rgba(239,68,68,0.18)_0%,rgba(239,68,68,0.07)_34%,rgba(239,68,68,0)_72%)] blur-[10px] ${compact ? "h-[420px] w-[420px]" : "h-[580px] w-[580px]"}`} />
+      <div className={`absolute right-[12%] top-[11%] rotate-[14deg] border border-[rgba(255,255,255,0.45)] bg-[linear-gradient(135deg,rgba(255,255,255,0.62)_0%,rgba(255,241,242,0.08)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] ${compact ? "h-20 w-20 rounded-[1.5rem]" : "h-28 w-28 rounded-[1.8rem]"}`} />
+      <div className={`absolute left-[10%] bottom-[16%] rounded-full border border-white/40 bg-[linear-gradient(135deg,rgba(255,255,255,0.56)_0%,rgba(236,253,245,0.08)_100%)] ${compact ? "h-24 w-24" : "h-36 w-36"}`} />
+      <div className={`absolute left-1/2 top-[10%] -translate-x-1/2 rounded-full border border-[rgba(239,68,68,0.18)] bg-[linear-gradient(90deg,rgba(255,255,255,0.46)_0%,rgba(255,241,242,0.08)_100%)] shadow-[0_0_60px_rgba(239,68,68,0.08)] ${compact ? "h-14 w-[220px]" : "h-18 w-[320px]"}`} />
+      <div
+        className={`absolute inset-0 ${compact ? "opacity-45" : "opacity-65"}`}
+        style={{
+          backgroundImage: AUCTION_BG_PATTERN,
+          backgroundSize: compact ? "180px 180px" : "260px 260px",
+          backgroundPosition: "center center",
+          maskImage: compact
+            ? "radial-gradient(circle at center, black 30%, rgba(0,0,0,0.82) 58%, transparent 92%)"
+            : "radial-gradient(circle at center, black 40%, transparent 88%)",
+        }}
+      />
+    </>
+  )
 }
 
 export default function AuctionGame() {
@@ -351,9 +376,10 @@ export default function AuctionGame() {
         title="لعبة المزاد"
         badge="إعداد الجولة"
         containerClassName="max-w-3xl"
+        className="bg-[linear-gradient(180deg,#fff7f7_0%,#fef2f2_26%,#f0fdf4_64%,#ffffff_100%)]"
+        backgroundDecor={<AuctionPageBackground />}
       >
-        <GameEntryPanel>
-          <div className="space-y-5">
+          <div className="space-y-5 md:px-2">
             <div className="space-y-4">
               <div className="text-sm font-bold text-[#1f1147] md:text-base">أسماء الفرق</div>
               {teamNames.map((name, index) => (
@@ -363,14 +389,14 @@ export default function AuctionGame() {
                       placeholder={`اكتب اسم الفريق ${index + 1}`}
                       value={name}
                       onChange={(e) => handleTeamNameChange(index, e.target.value)}
-                      className="h-14 rounded-2xl border border-[#d9d2f6] bg-[#fcfbff] px-4 text-right text-[#1f1147] placeholder:text-[#8a83a8] focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
+                      className="h-14 rounded-2xl border border-[#d8c9fb]/80 bg-transparent px-4 text-right text-[#3f2a76] placeholder:text-[#8f7fb1] focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
                     />
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => removeTeamField(index)}
                       disabled={teamNames.length <= MIN_TEAMS}
-                      className="h-14 min-w-14 rounded-2xl border-[#e7defc] px-4 text-[#7c3aed] hover:bg-[#f5f0ff] disabled:text-[#c5b4ef]"
+                      className="h-14 min-w-14 rounded-2xl border-[#d8c9fb]/80 bg-transparent px-4 text-[#6d28d9] hover:bg-[#f5f3ff]/20 disabled:text-[#c3b2ea]"
                       title="حذف الفريق"
                     >
                       <Minus className="h-5 w-5" />
@@ -382,9 +408,9 @@ export default function AuctionGame() {
                       type="button"
                       onClick={addTeamField}
                       disabled={teamNames.length >= MAX_TEAMS}
-                      className="h-12 rounded-2xl bg-[#7c3aed] px-5 text-base font-black text-white hover:bg-[#6d28d9] disabled:bg-[#cdb8fb]"
+                      className="h-10 rounded-2xl bg-[#7c3aed] px-4 text-sm font-bold text-white hover:bg-[#6d28d9] disabled:bg-[#cdb8fb]"
                     >
-                      <Plus className="mr-2 h-5 w-5" />
+                      <Plus className="mr-1.5 h-4 w-4" />
                       إضافة فريق
                     </Button>
                   ) : null}
@@ -400,7 +426,6 @@ export default function AuctionGame() {
               {loading ? <SiteLoader size="sm" color="#ffffff" /> : "ابدأ اللعبة"}
             </Button>
           </div>
-        </GameEntryPanel>
       </GameEntryShell>
     )
   }
@@ -414,7 +439,7 @@ export default function AuctionGame() {
         details={
           <div className="space-y-4 text-right">
             {finalRankings.map((team, index) => (
-              <div key={`${team.name}-${index}`} className="flex items-center justify-between rounded-[1.35rem] border border-[#e9e2fb] bg-[#fcfbff] p-4">
+              <div key={`${team.name}-${index}`} className="flex items-center justify-between rounded-[1.35rem] border border-[#f0b5b5]/55 bg-[linear-gradient(135deg,rgba(255,241,242,0.72)_0%,rgba(240,253,244,0.38)_100%)] p-4">
                 <span className="text-lg font-black text-[#1f1147]">{index + 1}. {team.name}</span>
                 <span className="text-xl font-black text-[#7c3aed]">{team.score.toLocaleString()}</span>
               </div>
@@ -434,7 +459,10 @@ export default function AuctionGame() {
 
   // صفحة اللعبة
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#ffffff_0%,#faf7ff_45%,#ffffff_100%)] p-4 sm:p-8">
+    <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#fff7f7_0%,#fef2f2_26%,#f0fdf4_64%,#ffffff_100%)] p-4 sm:p-8">
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+        <AuctionPageBackground compact />
+      </div>
 
       {/* إشعار إعادة الأسئلة */}
       {cycleNotification && (
@@ -445,9 +473,9 @@ export default function AuctionGame() {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto">
+      <div className="relative max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6 rounded-[2rem] border border-[#d9d2f6] bg-white/75 px-6 py-6 text-center shadow-[0_20px_60px_rgba(124,58,237,0.08)] backdrop-blur-sm sm:mb-10 sm:px-8 sm:py-8">
+        <div className="mb-6 rounded-[2rem] border border-[#d8c9fb]/55 bg-transparent px-6 py-6 text-center shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-[2px] sm:mb-10 sm:px-8 sm:py-8">
           <h1 className="mb-3 pb-[0.18em] text-3xl font-black leading-[1.2] bg-gradient-to-r from-[#1f1147] to-[#7c3aed] bg-clip-text text-transparent sm:text-5xl">
             🏆 لعبة المزاد
           </h1>
@@ -467,10 +495,10 @@ export default function AuctionGame() {
               key={index}
               className="relative group"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] rounded-2xl blur-sm group-hover:blur-md transition-all"></div>
-              <div className="relative bg-white rounded-2xl shadow-xl p-6 sm:p-8 border-2 border-[#7c3aed]/15 hover:border-[#7c3aed]/40 transition-all">
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-[#c4b5fd]/10 to-[#a78bfa]/8 blur-sm transition-all group-hover:from-[#c4b5fd]/16 group-hover:to-[#a78bfa]/12 group-hover:blur-md"></div>
+              <div className="relative rounded-2xl border border-[#c4b5fd]/45 bg-[linear-gradient(135deg,rgba(255,255,255,0.52)_0%,rgba(248,245,255,0.34)_100%)] p-6 shadow-[0_16px_34px_rgba(124,58,237,0.08)] backdrop-blur-[2px] transition-all hover:border-[#c4b5fd]/65 sm:p-8">
                 <div className="text-center">
-                  <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-[#1a2332]">
+                  <h3 className="mb-3 text-xl font-bold text-[#00312e] sm:mb-4 sm:text-2xl">
                     {team.name}
                   </h3>
                   <div className="relative flex items-center justify-center gap-2">
@@ -482,7 +510,7 @@ export default function AuctionGame() {
                       className="focus:outline-none"
                       title="تعديل النقاط"
                     >
-                      <span className="text-4xl sm:text-6xl font-black bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] bg-clip-text text-transparent mb-1">
+                      <span className="mb-1 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] bg-clip-text text-4xl font-black text-transparent sm:text-6xl">
                         {team.score.toLocaleString()}
                       </span>
                     </button>
@@ -494,7 +522,7 @@ export default function AuctionGame() {
           ))}
         </div>
         {questionsExhausted ? (
-          <div className="mb-6 rounded-2xl border border-[#7c3aed]/20 bg-white/85 px-5 py-4 text-center shadow-sm sm:mb-8">
+          <div className="mb-6 rounded-2xl border border-[#f0b5b5]/55 bg-[linear-gradient(135deg,rgba(255,241,242,0.84)_0%,rgba(240,253,244,0.46)_100%)] px-5 py-4 text-center shadow-sm sm:mb-8">
             <div className="text-sm font-bold text-[#6d28d9] sm:text-base">
               انتهت الأسئلة المتاحة لهذا المستخدم في لعبة المزاد. يمكنك إعادة الأسئلة ثم متابعة اللعب.
             </div>
@@ -562,23 +590,23 @@ export default function AuctionGame() {
       </Dialog>
 
         {/* أزرار التحكم */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 border-2 border-[#7c3aed]/15">
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <div className="pt-2 sm:pt-3">
+          <div className="flex flex-col justify-center gap-4 sm:flex-row">
             <Button
               onClick={selectQuestion}
               size="lg"
               disabled={loading || allQuestions.length === 0}
-              className="flex-1 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] hover:from-[#6d28d9] hover:to-[#5b21b6] text-white text-lg sm:text-xl px-8 py-6 sm:py-8 shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+              className="group flex-1 rounded-[1.6rem] border border-[#c4b5fd]/45 bg-[linear-gradient(135deg,#7c3aed_0%,#6d28d9_55%,#5b21b6_100%)] px-8 py-6 text-lg text-white shadow-[0_18px_38px_rgba(124,58,237,0.24)] transition-all hover:-translate-y-0.5 hover:border-[#ddd6fe]/70 hover:shadow-[0_24px_54px_rgba(109,40,217,0.3)] sm:py-7 sm:text-xl"
             >
-              <HelpCircle className="mr-2 w-6 h-6" />
+              <HelpCircle className="mr-2 h-6 w-6 opacity-90 transition group-hover:scale-110" />
               سؤال جديد
             </Button>
             <Button
               onClick={endGame}
               size="lg"
-              className="flex-1 sm:flex-none bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white text-lg sm:text-xl px-8 py-6 sm:py-8 shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+              className="group flex-1 rounded-[1.6rem] border border-[#fca5a5]/50 bg-[linear-gradient(135deg,#ff3b3b_0%,#ef4444_52%,#dc2626_100%)] px-8 py-6 text-lg text-white shadow-[0_18px_38px_rgba(239,68,68,0.22)] transition-all hover:-translate-y-0.5 hover:border-[#fecaca]/72 hover:shadow-[0_24px_54px_rgba(220,38,38,0.28)] sm:flex-none sm:py-7 sm:text-xl"
             >
-              <Trophy className="mr-2 w-6 h-6" />
+              <Trophy className="mr-2 h-6 w-6 opacity-90 transition group-hover:scale-110" />
               إنهاء اللعبة
             </Button>
           </div>

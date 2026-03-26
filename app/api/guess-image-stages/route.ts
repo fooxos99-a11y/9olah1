@@ -31,6 +31,25 @@ export async function POST(req: Request) {
   return NextResponse.json(data?.[0] ?? {});
 }
 
+// تعديل اسم مرحلة
+export async function PUT(req: Request) {
+  const { id, name } = await req.json();
+  if (!id) return NextResponse.json({ error: 'المعرف مطلوب' }, { status: 400 });
+  if (!name) return NextResponse.json({ error: 'الاسم مطلوب' }, { status: 400 });
+
+  const { data, error } = await supabase
+    .from('guess_image_stages')
+    .update({ name })
+    .eq('id', id)
+    .select();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json(data?.[0] ?? {});
+}
+
 // حذف مرحلة
 export async function DELETE(req: Request) {
   const { searchParams } = new URL(req.url);

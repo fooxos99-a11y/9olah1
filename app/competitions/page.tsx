@@ -19,6 +19,7 @@ type GameCard = {
   tagline: string
   preview?: "letter-hive"
   available: boolean
+  publicAccess?: boolean
   path: string
   accent: string
   surfaceClass: string
@@ -105,8 +106,8 @@ const games: GameCard[] = [
     id: "millionaire-game",
     title: "من سيربح المليون",
     description: "جاوب صح، اطلع خطوة خطوة، ووصل لسؤال المليون.",
-    tagline: "إحساس برامج المسابقات الشهيرة",
-    available: true,
+    tagline: "بانتظار الإطلاق",
+    available: false,
     path: "/competitions/millionaire-game",
     accent: "#1d4ed8",
     surfaceClass:
@@ -301,11 +302,10 @@ function GameArtwork({ game, index }: { game: GameCard; index: number }) {
 }
 
 export default function CompetitionsPage() {
-  const initialUser = getCachedClientAuth()
   const [loadingGameId, setLoadingGameId] = useState<string | null>(null)
-  const [hasFullAccess, setHasFullAccess] = useState(() => Boolean(initialUser && FULL_LIBRARY_ROLES.includes(initialUser.role)))
-  const [hasRegisteredAccess, setHasRegisteredAccess] = useState(() => Boolean(initialUser && REGISTERED_LIBRARY_ROLES.includes(initialUser.role)))
-  const [authResolved, setAuthResolved] = useState(() => Boolean(initialUser))
+  const [hasFullAccess, setHasFullAccess] = useState(false)
+  const [hasRegisteredAccess, setHasRegisteredAccess] = useState(false)
+  const [authResolved, setAuthResolved] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -367,7 +367,7 @@ export default function CompetitionsPage() {
     window.addEventListener("pageshow", handlePageShow)
 
     games.forEach((game) => {
-      if (game.available && (hasFullAccess || hasRegisteredAccess)) {
+      if (game.available && (game.publicAccess || hasFullAccess || hasRegisteredAccess)) {
         router.prefetch(game.path)
       }
     })
@@ -380,6 +380,16 @@ export default function CompetitionsPage() {
 
   const handleGameNavigation = (path: string, gameId: string) => {
     if (loadingGameId || !authResolved) {
+      return
+    }
+
+    const selectedGame = games.find((game) => game.id === gameId)
+
+    if (selectedGame?.publicAccess) {
+      setLoadingGameId(gameId)
+      requestAnimationFrame(() => {
+        router.push(path)
+      })
       return
     }
 
@@ -419,7 +429,7 @@ export default function CompetitionsPage() {
           <div className="space-y-6">
             {games.map((game, index) => {
               const isLoading = loadingGameId === game.id
-              const isUnlocked = authResolved && game.available && (hasFullAccess || hasRegisteredAccess)
+              const isUnlocked = authResolved && game.available && (game.publicAccess || hasFullAccess || hasRegisteredAccess)
               const isAlternate = index % 2 === 1
               const cardTheme = {
                 surfaceClass: game.surfaceClass,
@@ -459,6 +469,10 @@ export default function CompetitionsPage() {
                             style={{ backgroundColor: `${game.accent}18`, color: game.accent }}
                           >
                             قريبًا
+                          </span>
+                        ) : game.publicAccess ? (
+                          <span className="inline-flex rounded-full bg-white/60 px-3 py-1 text-xs font-bold text-[#6d28d9] backdrop-blur">
+                            الدخول متاح
                           </span>
                         ) : !isUnlocked ? (
                           <span className="inline-flex items-center gap-2 rounded-full bg-white/60 px-3 py-1 text-xs font-bold text-[#7c3aed] backdrop-blur">

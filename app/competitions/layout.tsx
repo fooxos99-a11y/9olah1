@@ -25,7 +25,7 @@ function ProtectedLibrary({ children, allowedRoles }: { children: ReactNode; all
 
 export default function CompetitionsLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const isPublicPath = pathname === "/competitions"
+  const isPublicPath = pathname === "/competitions" || pathname?.startsWith("/competitions/letter-hive-live")
 
   if (isPublicPath) {
     return <>{children}</>

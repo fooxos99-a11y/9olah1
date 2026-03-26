@@ -19,6 +19,11 @@ const adminGames = [
     href: "/admin/letter-hive-questions",
   },
   {
+    title: "المسجلين",
+    description: "",
+    href: "/admin/letter-hive-live-registrations",
+  },
+  {
     title: "خمن الصورة",
     description: "إدارة المراحل والصور والإجابات الخاصة باللعبة.",
     href: "/admin/guess-images",

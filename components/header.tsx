@@ -19,6 +19,7 @@ const navItems = [
   { href: "/", label: "الرئيسية" },
   { href: "/competitions", label: "الألعاب" },
   { href: "/contact", label: "تواصل معنا" },
+  { href: "/competitions/letter-hive-live", label: "بطولة" },
   { href: "/admin", label: "لوحة التحكم" },
 ]
 
@@ -122,6 +123,18 @@ export function Header() {
     }
   }
 
+  const isNavItemActive = (href: string) => {
+    if (href === "/") {
+      return pathname === "/"
+    }
+
+    if (href === "/competitions") {
+      return pathname === "/competitions"
+    }
+
+    return pathname === href || pathname?.startsWith(`${href}/`)
+  }
+
   return (
     <header className="sticky top-0 z-40 border-b border-[#7c3aed]/10 bg-white/95 backdrop-blur" dir="rtl">
       <div className="container relative mx-auto flex items-center justify-between gap-4 px-4 py-4">
@@ -135,7 +148,7 @@ export function Header() {
 
         <nav className="hidden items-center gap-3 md:absolute md:left-1/2 md:top-1/2 md:flex md:-translate-x-1/2 md:-translate-y-1/2">
           {navItems.filter((item) => item.href !== "/admin" || isAdmin).map((item) => {
-            const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`)
+            const isActive = isNavItemActive(item.href)
             return (
               <Link
                 key={item.href}

@@ -64,6 +64,8 @@ export default function GuessImagesManagement() {
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null)
   const [showAddStage, setShowAddStage] = useState(false)
   const [newStage, setNewStage] = useState("")
+  const [editingStageId, setEditingStageId] = useState<number | null>(null)
+  const [editingStageName, setEditingStageName] = useState("")
   const [stageLoading, setStageLoading] = useState(false)
 
   const fetchStages = async () => {
@@ -113,6 +115,40 @@ export default function GuessImagesManagement() {
       await fetchStages()
     } catch (error) {
       console.error("Error deleting stage:", error)
+    } finally {
+      setStageLoading(false)
+    }
+  }
+
+  const startEditStage = (stage: Stage) => {
+    setEditingStageId(stage.id)
+    setEditingStageName(stage.name)
+    setShowAddStage(false)
+  }
+
+  const cancelEditStage = () => {
+    setEditingStageId(null)
+    setEditingStageName("")
+  }
+
+  const updateStage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingStageId || !editingStageName.trim()) return
+
+    setStageLoading(true)
+    try {
+      const res = await fetch("/api/guess-image-stages", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingStageId, name: editingStageName })
+      })
+
+      if (res.ok) {
+        cancelEditStage()
+        await fetchStages()
+      }
+    } catch (error) {
+      console.error("Error updating stage:", error)
     } finally {
       setStageLoading(false)
     }
@@ -302,21 +338,49 @@ export default function GuessImagesManagement() {
                           : 'bg-white border-slate-200 text-slate-600 hover:border-[#7c3aed] hover:text-[#7c3aed]'
                       }`}
                     >
-                      <button
-                        className="px-5 py-2 font-medium text-sm outline-none"
-                        onClick={() => setSelectedStageId(stage.id)}
-                      >
-                        {stage.name}
-                      </button>
-                      <button 
-                        onClick={() => deleteStage(stage.id)} 
-                        title="حذف المرحلة" 
-                        className={`p-2 rounded-full transition-colors ${
-                          selectedStageId === stage.id ? 'hover:bg-white/20' : 'hover:bg-red-50 hover:text-red-500'
-                        }`}
-                      >
-                        <X size={14} />
-                      </button>
+                      {editingStageId === stage.id ? (
+                        <form onSubmit={updateStage} className="flex items-center gap-2 px-2 py-1">
+                          <Input
+                            value={editingStageName}
+                            onChange={(e) => setEditingStageName(e.target.value)}
+                            className="h-9 w-40 rounded-full border-0 bg-transparent px-3 text-sm font-medium text-inherit focus-visible:ring-0"
+                            autoFocus
+                          />
+                          <Button type="submit" size="sm" className="rounded-full bg-white/20 px-3 text-white hover:bg-white/30" disabled={stageLoading || !editingStageName.trim()}>
+                            حفظ
+                          </Button>
+                          <Button type="button" size="icon" variant="ghost" className={`rounded-full ${selectedStageId === stage.id ? 'text-white hover:bg-white/20' : 'text-slate-500 hover:text-red-500 hover:bg-red-50'}`} onClick={cancelEditStage}>
+                            <X size={14} />
+                          </Button>
+                        </form>
+                      ) : (
+                        <>
+                          <button
+                            className="px-5 py-2 font-medium text-sm outline-none"
+                            onClick={() => setSelectedStageId(stage.id)}
+                          >
+                            {stage.name}
+                          </button>
+                          <button
+                            onClick={() => startEditStage(stage)}
+                            title="تعديل اسم المرحلة"
+                            className={`p-2 rounded-full transition-colors ${
+                              selectedStageId === stage.id ? 'hover:bg-white/20' : 'hover:bg-[#7c3aed]/10 hover:text-[#7c3aed]'
+                            }`}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button 
+                            onClick={() => deleteStage(stage.id)} 
+                            title="حذف المرحلة" 
+                            className={`p-2 rounded-full transition-colors ${
+                              selectedStageId === stage.id ? 'hover:bg-white/20' : 'hover:bg-red-50 hover:text-red-500'
+                            }`}
+                          >
+                            <X size={14} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   ))}
                   

@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { SiteLoader } from "@/components/ui/site-loader"
 import { ArrowRight, Check } from "lucide-react"
 import { GameFinishOverlay } from "@/components/games/game-finish-overlay"
-import { GameEntryPanel, GameEntryShell, GameField } from "@/components/games/game-entry-shell"
+import { GameEntryPanel, GameEntryShell } from "@/components/games/game-entry-shell"
 
 type DBQuestion = {
   id: string
@@ -47,6 +47,12 @@ type GameCategory = {
   questions: GameQuestion[]
 }
 
+type CategoryArtwork = {
+  imageUrl: string
+  imagePosition?: string
+  overlayClassName?: string
+}
+
 type Step = "teams" | "categories" | "game"
 
 type LifelineButtonProps = {
@@ -62,14 +68,130 @@ type LifelineButtonProps = {
 }
 
 const MAX_SELECTED_CATEGORIES = 6
+const CATEGORIES_BG_PATTERN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cg fill='none' stroke='%230f766e' stroke-opacity='0.14' stroke-width='1'%3E%3Cpath d='M0 80h240'/%3E%3Cpath d='M0 160h240'/%3E%3Cpath d='M80 0v240'/%3E%3Cpath d='M160 0v240'/%3E%3C/g%3E%3Cg fill='%23ffffff' fill-opacity='0.34'%3E%3Ccircle cx='80' cy='80' r='3'/%3E%3Ccircle cx='160' cy='160' r='3'/%3E%3Ccircle cx='160' cy='80' r='2'/%3E%3Ccircle cx='80' cy='160' r='2'/%3E%3C/g%3E%3C/svg%3E\")"
+
+function CategoriesPageBackground({ board = false }: { board?: boolean }) {
+  return (
+    <>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(20,184,166,0.2)_0%,rgba(20,184,166,0.08)_18%,rgba(20,184,166,0)_42%),radial-gradient(circle_at_86%_14%,rgba(8,145,178,0.18)_0%,rgba(8,145,178,0.08)_20%,rgba(8,145,178,0)_42%),radial-gradient(circle_at_72%_76%,rgba(250,204,21,0.18)_0%,rgba(250,204,21,0.06)_16%,rgba(250,204,21,0)_36%),radial-gradient(circle_at_26%_78%,rgba(251,146,60,0.14)_0%,rgba(251,146,60,0.05)_16%,rgba(251,146,60,0)_36%)]" />
+      <div className={`absolute -top-28 right-[-120px] rounded-full bg-[radial-gradient(circle,rgba(20,184,166,0.22)_0%,rgba(20,184,166,0.08)_34%,rgba(20,184,166,0)_70%)] blur-[10px] ${board ? "h-[420px] w-[420px]" : "h-[560px] w-[560px]"}`} />
+      <div className={`absolute -bottom-32 left-[-110px] rounded-full bg-[radial-gradient(circle,rgba(8,145,178,0.18)_0%,rgba(8,145,178,0.08)_34%,rgba(8,145,178,0)_72%)] blur-[12px] ${board ? "h-[440px] w-[440px]" : "h-[600px] w-[600px]"}`} />
+      <div className={`absolute left-[12%] top-[14%] rounded-full border border-white/45 bg-[linear-gradient(135deg,rgba(255,255,255,0.72)_0%,rgba(240,253,250,0.18)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-[2px] ${board ? "h-24 w-24" : "h-32 w-32"}`} />
+      <div className={`absolute bottom-[18%] right-[14%] rotate-[12deg] border border-[rgba(15,118,110,0.14)] bg-[linear-gradient(135deg,rgba(20,184,166,0.12)_0%,rgba(250,204,21,0.03)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] ${board ? "h-24 w-24 rounded-[1.75rem]" : "h-36 w-36 rounded-[2rem]"}`} />
+      <div className={`absolute left-[50%] top-[10%] -translate-x-1/2 rounded-full border border-white/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.56)_0%,rgba(236,253,245,0.08)_100%)] ${board ? "h-16 w-[240px]" : "h-20 w-[320px]"}`} />
+      <div
+        className={`absolute inset-0 ${board ? "opacity-45" : "opacity-65"}`}
+        style={{
+          backgroundImage: CATEGORIES_BG_PATTERN,
+          backgroundSize: board ? "180px 180px" : "240px 240px",
+          backgroundPosition: "center center",
+          maskImage: board
+            ? "radial-gradient(circle at center, black 34%, rgba(0,0,0,0.78) 58%, transparent 92%)"
+            : "radial-gradient(circle at center, black 42%, transparent 88%)",
+        }}
+      />
+      <div className={`absolute inset-[4%] rounded-[40px] border border-white/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.48)_0%,rgba(236,253,245,0.1)_34%,rgba(255,255,255,0.03)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] ${board ? "opacity-70" : "opacity-100"}`} />
+    </>
+  )
+}
+
+const categoryArtworkByName: Record<string, CategoryArtwork> = {
+  "القرآن الكريم": {
+    imageUrl: "/1.png",
+    imagePosition: "center 35%",
+    overlayClassName: "bg-[linear-gradient(180deg,rgba(35,16,79,0.2)_0%,rgba(35,16,79,0.58)_42%,rgba(18,8,43,0.92)_100%)]",
+  },
+  "إسلامي": {
+    imageUrl: "/2.png",
+  },
+  "أسئلة عامة": {
+    imageUrl: "/3.png",
+  },
+  "السعودية": {
+    imageUrl: "/4.png",
+  },
+  "عالم الحيوان": {
+    imageUrl: "/5.png",
+  },
+  "كرة قدم": {
+    imageUrl: "/6.png",
+  },
+  "كرة القدم": {
+    imageUrl: "/6.png",
+  },
+  "علوم": {
+    imageUrl: "/7.png",
+  },
+  "جغرافيا": {
+    imageUrl: "/8.png",
+  },
+  "العاب الكترونية": {
+    imageUrl: "/9.png",
+  },
+  "ألعاب إلكترونية": {
+    imageUrl: "/9.png",
+  },
+  "ألعاب الكترونية": {
+    imageUrl: "/9.png",
+  },
+  "انمي": {
+    imageUrl: "/10.png",
+  },
+  "أنمي": {
+    imageUrl: "/10.png",
+  },
+  "أندية": {
+    imageUrl: "/11.png",
+  },
+  "اندية": {
+    imageUrl: "/11.png",
+  },
+  "كلمات القران": {
+    imageUrl: "/12.png",
+  },
+  "كلمات القرآن": {
+    imageUrl: "/12.png",
+  },
+  "wwe": {
+    imageUrl: "/13.png",
+  },
+  "WWE": {
+    imageUrl: "/13.png",
+  },
+  "التاريخ": {
+    imageUrl: "/14.png",
+  },
+  "تاريخ": {
+    imageUrl: "/14.png",
+  },
+  "ألغاز": {
+    imageUrl: "/15.png",
+  },
+  "الغاز": {
+    imageUrl: "/15.png",
+  },
+  "ألقاب الصحابة": {
+    imageUrl: "/16.png",
+  },
+  "القاب الصحابة": {
+    imageUrl: "/16.png",
+  },
+  "دول وعواصم": {
+    imageUrl: "/17.png",
+  },
+}
+
+function getCategoryArtwork(categoryName: string) {
+  return categoryArtworkByName[categoryName] ?? null
+}
 
 function LifelineButton({ icon, tooltip, ariaLabel, disabled = false, active = false, used = false, tooltipAlign = "center", tooltipWidthClass = "w-[220px] sm:w-[260px]", onClick }: LifelineButtonProps) {
   const tooltipPositionClass =
     tooltipAlign === "left"
-      ? "left-0 translate-x-0 text-right"
+      ? "left-0 translate-x-0"
       : tooltipAlign === "right"
-        ? "right-0 translate-x-0 text-right"
-        : "left-1/2 -translate-x-1/2 text-center"
+        ? "right-0 translate-x-0"
+        : "left-1/2 -translate-x-1/2"
 
   return (
     <div className="group relative">
@@ -81,13 +203,13 @@ function LifelineButton({ icon, tooltip, ariaLabel, disabled = false, active = f
         className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-[#6d28d9] shadow-sm transition ${
           active
             ? "border-[#7c3aed]/45 bg-[#f5f3ff] ring-2 ring-[#7c3aed]/15"
-            : "border-[#d9d2f6] bg-white/90 hover:border-[#b8a4f4] hover:bg-[#faf7ff]"
-        } ${disabled ? "cursor-not-allowed border-[#e4dcfa] bg-white text-[#b8a7eb] opacity-40 hover:border-[#e4dcfa] hover:bg-white" : ""} ${used ? "opacity-45" : ""}`}
+            : "border-[#89d8cf]/60 bg-[linear-gradient(135deg,rgba(240,253,250,0.78)_0%,rgba(236,254,255,0.52)_100%)] hover:border-[#4fd1c5] hover:bg-[linear-gradient(135deg,rgba(204,251,241,0.88)_0%,rgba(207,250,254,0.58)_100%)]"
+        } ${disabled ? "cursor-not-allowed border-[#c6ece7] bg-[linear-gradient(135deg,rgba(240,253,250,0.62)_0%,rgba(236,254,255,0.4)_100%)] text-[#8fb8b2] opacity-40 hover:border-[#c6ece7] hover:bg-[linear-gradient(135deg,rgba(240,253,250,0.62)_0%,rgba(236,254,255,0.4)_100%)]" : ""} ${used ? "opacity-45" : ""}`}
       >
         {icon}
       </button>
       {tooltip ? (
-        <div className={`pointer-events-none absolute top-full z-20 mt-2 max-w-[calc(100vw-2rem)] rounded-xl bg-[#7c3aed] px-3 py-2 text-xs font-bold leading-6 whitespace-normal break-words text-white opacity-0 shadow-lg transition group-hover:opacity-100 ${tooltipWidthClass} ${tooltipPositionClass}`}>
+        <div className={`pointer-events-none absolute top-full z-20 mt-2 flex max-w-[calc(100vw-2rem)] items-center justify-center rounded-xl bg-[#7c3aed] px-3 py-2 text-center text-xs font-bold leading-6 whitespace-normal break-words text-white opacity-0 shadow-lg transition group-hover:opacity-100 ${tooltipWidthClass} ${tooltipPositionClass}`}>
           {tooltip}
         </div>
       ) : null}
@@ -521,14 +643,14 @@ export default function CategoriesPage() {
       key={`team-card-${teamIdx}`}
       type="button"
       onClick={() => setEditingTeam(teamIdx)}
-      className={`min-w-[96px] rounded-[1.35rem] border px-3 py-2 text-center shadow-sm transition ${
+      className={`min-w-[100px] rounded-[1.15rem] border px-2.5 py-1.5 text-center shadow-sm transition ${
         currentTurn === teamIdx
           ? "border-[#7c3aed]/45 bg-[#f5f3ff] ring-2 ring-[#7c3aed]/15"
-          : "border-[#d9d2f6] bg-white/90"
+          : "border-[#89d8cf]/60 bg-[linear-gradient(135deg,rgba(240,253,250,0.78)_0%,rgba(236,254,255,0.52)_100%)]"
       }`}
     >
-      <div className="truncate text-xs font-black text-[#6d28d9] md:text-sm">{teamNames[teamIdx]}</div>
-      <div className="mt-1 text-2xl font-black leading-none text-[#7c3aed] md:text-[1.9rem]">{teamScores[teamIdx]}</div>
+      <div className="truncate text-[11px] font-black text-[#6d28d9] md:text-[13px]">{teamNames[teamIdx]}</div>
+      <div className="mt-0.5 text-xl font-black leading-none text-[#7c3aed] md:text-[1.55rem]">{teamScores[teamIdx]}</div>
     </button>
   )
 
@@ -620,16 +742,15 @@ export default function CategoriesPage() {
         title="لعبة الفئات"
         badge="إعداد الفرق"
         containerClassName="max-w-3xl"
+        className="bg-[linear-gradient(180deg,#f4fffc_0%,#ecfeff_32%,#fffbea_68%,#ffffff_100%)]"
+        backgroundDecor={<CategoriesPageBackground />}
       >
-        <GameEntryPanel>
-          <div className="space-y-5">
+          <div className="space-y-5 md:px-2">
+            <div className="space-y-4">
+              <div className="text-sm font-bold text-[#1f1147] md:text-base">أسماء الفرق</div>
             {teamNames.map((teamName, idx) => (
-              <GameField
-                key={idx}
-                label={
-                  <span>{`اسم الفريق ${idx + 1}`}</span>
-                }
-              >
+              <div key={idx} className="space-y-3">
+                <div className="text-sm font-bold text-[#1f1147] md:text-base">{`اسم الفريق ${idx + 1}`}</div>
                 <Input
                   id={`team${idx + 1}`}
                   value={teamName || ""}
@@ -639,10 +760,11 @@ export default function CategoriesPage() {
                     setTeamNames(newNames)
                   }}
                   placeholder={`اكتب اسم الفريق ${idx + 1}`}
-                  className="h-14 rounded-2xl border border-[#d9d2f6] bg-[#fcfbff] px-4 text-right text-[#1f1147] placeholder:text-[#8a83a8] focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
+                  className="h-14 rounded-2xl border border-[#d8c9fb]/80 bg-transparent px-4 text-right text-[#3f2a76] placeholder:text-[#8f7fb1] focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
                 />
-              </GameField>
+              </div>
             ))}
+            </div>
 
             <Button
               onClick={handleTeamsSubmit}
@@ -652,7 +774,6 @@ export default function CategoriesPage() {
               <ArrowRight className="mr-2 h-5 w-5" />
             </Button>
           </div>
-        </GameEntryPanel>
       </GameEntryShell>
     )
   }
@@ -663,10 +784,12 @@ export default function CategoriesPage() {
       <GameEntryShell
         title={`اختر ${MAX_SELECTED_CATEGORIES} فئات`}
         badge="مرحلة الاختيار"
-        subtitle={`تم اختيار ${selectedCategoryIds.length} من ${MAX_SELECTED_CATEGORIES} فئات. ثم ابدأ الجولة.`}
-        containerClassName="max-w-5xl"
+        subtitle={`تم اختيار ${selectedCategoryIds.length} من ${MAX_SELECTED_CATEGORIES} فئات.`}
+        containerClassName="max-w-7xl"
+        className="bg-[linear-gradient(180deg,#f4fffc_0%,#ecfeff_32%,#fffbea_68%,#ffffff_100%)]"
+        backgroundDecor={<CategoriesPageBackground />}
       >
-        <GameEntryPanel>
+        <GameEntryPanel className="border border-[#8cd7cd]/55 bg-[linear-gradient(135deg,rgba(236,253,245,0.62)_0%,rgba(236,254,255,0.38)_100%)] shadow-[0_24px_80px_rgba(13,148,136,0.09)]">
           {loading ? (
             <div className="py-12 text-center">
               <SiteLoader />
@@ -674,7 +797,7 @@ export default function CategoriesPage() {
           ) : (
             <>
               {questionsResetNeeded ? (
-                <div className="mb-6 rounded-[1.5rem] border border-[#7c3aed]/15 bg-[#fcfbff] px-5 py-4 text-right shadow-sm">
+                <div className="mb-6 rounded-[1.5rem] border border-[#8cd7cd]/55 bg-[linear-gradient(135deg,rgba(236,253,245,0.72)_0%,rgba(236,254,255,0.44)_100%)] px-5 py-4 text-right shadow-sm backdrop-blur-md">
                   <div className="text-sm font-bold leading-7 text-[#5b21b6] md:text-base">
                     لم تعد الأسئلة الجديدة كافية لبناء لوحة كاملة في الفئات المختارة لهذا المستخدم. أعد الأسئلة ثم ابدأ الجولة من جديد.
                   </div>
@@ -689,33 +812,58 @@ export default function CategoriesPage() {
                 </div>
               ) : null}
 
-              <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-3">
-                {allCategories.map((category) => (
-                  <button
-                    key={category.id}
-                    onClick={() => toggleCategorySelection(category.id)}
-                    disabled={!selectedCategoryIds.includes(category.id) && selectedCategoryIds.length >= MAX_SELECTED_CATEGORIES}
-                    className={`relative rounded-[1.5rem] border p-5 text-right transition-all ${
-                      selectedCategoryIds.includes(category.id)
-                        ? "border-[#7c3aed]/30 bg-[linear-gradient(135deg,#7c3aed_0%,#6d28d9_100%)] text-white shadow-[0_20px_50px_rgba(124,58,237,0.18)]"
-                        : "border-[#e9e2fb] bg-[#fcfbff] text-[#1f1147] hover:border-[#c4b5fd]"
-                    } ${!selectedCategoryIds.includes(category.id) && selectedCategoryIds.length >= MAX_SELECTED_CATEGORIES ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
-                  >
-                    <h3 className="text-lg font-black">{category.name}</h3>
-                    {selectedCategoryIds.includes(category.id) ? (
-                      <div className="absolute left-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#6d28d9]">
-                        <Check className="h-4 w-4" />
+              <div className="mb-8 grid grid-cols-2 gap-5 md:grid-cols-4">
+                {allCategories.map((category) => {
+                  const artwork = getCategoryArtwork(category.name)
+                  const isSelected = selectedCategoryIds.includes(category.id)
+
+                  return (
+                    <button
+                      key={category.id}
+                      onClick={() => toggleCategorySelection(category.id)}
+                      disabled={!selectedCategoryIds.includes(category.id) && selectedCategoryIds.length >= MAX_SELECTED_CATEGORIES}
+                      className={`relative overflow-hidden rounded-[1.6rem] border-2 text-center transition-all ${
+                        isSelected
+                          ? "border-[#8b5cf6]/45 bg-[linear-gradient(135deg,#7c3aed_0%,#6d28d9_100%)] text-white shadow-[0_20px_50px_rgba(124,58,237,0.18)]"
+                          : "border-[#8cd7cd]/65 bg-[linear-gradient(135deg,rgba(240,253,250,0.78)_0%,rgba(236,254,255,0.54)_100%)] text-[#134e4a] hover:border-[#14b8a6]"
+                      } ${!isSelected && selectedCategoryIds.length >= MAX_SELECTED_CATEGORIES ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                    >
+                      {artwork ? (
+                        <div
+                          className={`absolute inset-0 bg-cover bg-no-repeat transition duration-300 ${isSelected ? "scale-[1.08] blur-[5px]" : ""}`}
+                          style={{
+                            backgroundImage: `url(${artwork.imageUrl})`,
+                            backgroundPosition: artwork.imagePosition ?? "center",
+                          }}
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                      {artwork ? (
+                        <div
+                          className={`absolute inset-0 ${artwork.overlayClassName ?? "bg-[linear-gradient(180deg,rgba(35,16,79,0.18)_0%,rgba(35,16,79,0.78)_100%)]"}`}
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                      <div className={`relative p-6 ${artwork ? "min-h-[152px] flex items-end justify-center" : "min-h-[132px] flex items-center justify-center"}`}>
+                        <h3 className={`text-lg font-black ${artwork ? "text-white [text-shadow:0_3px_14px_rgba(0,0,0,0.78)]" : ""}`}>
+                          {category.name}
+                        </h3>
                       </div>
-                    ) : null}
-                  </button>
-                ))}
+                      {isSelected ? (
+                        <div className="absolute left-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(236,253,245,0.92)_0%,rgba(236,254,255,0.72)_100%)] text-[#0f766e] shadow-sm">
+                          <Check className="h-4 w-4" />
+                        </div>
+                      ) : null}
+                    </button>
+                  )
+                })}
               </div>
 
               <div className="flex gap-4">
                 <Button
                   onClick={() => setStep("teams")}
                   variant="outline"
-                  className="h-14 flex-1 rounded-2xl border-[#c4b5fd] text-base font-black text-[#6d28d9] hover:bg-[#f5f3ff]"
+                  className="h-14 flex-1 rounded-2xl border-[#8cd7cd]/65 bg-[linear-gradient(135deg,rgba(240,253,250,0.82)_0%,rgba(236,254,255,0.58)_100%)] text-base font-black text-[#0f766e] hover:bg-[linear-gradient(135deg,rgba(204,251,241,0.9)_0%,rgba(207,250,254,0.66)_100%)]"
                 >
                   رجوع
                 </Button>
@@ -737,15 +885,18 @@ export default function CategoriesPage() {
 
   // صفحة اللعبة
   return (
-      <div className="relative min-h-screen bg-[linear-gradient(180deg,#ffffff_0%,#faf7ff_45%,#ffffff_100%)] px-2 py-4 sm:px-3 lg:px-4">
-        <div className="mx-auto max-w-[1880px]">
+      <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#f4fffc_0%,#ecfeff_32%,#fffbea_68%,#ffffff_100%)] px-2 py-4 sm:px-3 lg:px-4">
+        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+          <CategoriesPageBackground board />
+        </div>
+        <div className="relative mx-auto max-w-[1880px]">
         {/* شريط الدور والفرق */}
         <div className={`relative z-[60] mb-3 text-[#1f1147] sm:mb-4 ${
           isQuestionOpen
             ? "rounded-none border-transparent bg-transparent p-0 shadow-none backdrop-blur-0"
-            : "rounded-[1.75rem] border-2 border-[#cdb8fb] bg-white/20 p-3 shadow-[0_24px_80px_rgba(124,58,237,0.08)] backdrop-blur-2xl sm:p-4"
+            : "rounded-[1.48rem] border-2 border-[#8cd7cd]/55 bg-[linear-gradient(135deg,rgba(236,253,245,0.42)_0%,rgba(236,254,255,0.22)_100%)] px-3 py-2.5 shadow-[0_24px_80px_rgba(13,148,136,0.08)] backdrop-blur-2xl sm:px-3.5 sm:py-3"
         }`}>
-          <div className="flex flex-col gap-3 xl:relative xl:min-h-[92px] xl:justify-center">
+          <div className="flex flex-col gap-2.5 xl:relative xl:min-h-[82px] xl:justify-center">
             <div className="flex justify-center transition xl:absolute xl:right-0 xl:top-1/2 xl:-translate-y-1/2">
               {renderTeamLifelines(0)}
             </div>
@@ -754,12 +905,12 @@ export default function CategoriesPage() {
               {renderTeamLifelines(1)}
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-3 xl:px-[240px]">
+            <div className="flex flex-wrap items-center justify-center gap-2.5 xl:px-[222px]">
               {renderTeamCard(0)}
-              <div className="flex items-center justify-center gap-3 xl:min-w-[180px]">
-                <div className="relative inline-flex items-center py-1 text-xl font-black tracking-[-0.04em] text-transparent md:text-2xl">
+              <div className="flex items-center justify-center gap-2.5 xl:min-w-[168px]">
+                <div className="relative inline-flex items-center py-0.5 text-lg font-black tracking-[-0.04em] text-transparent md:text-[1.45rem]">
                   <span className="bg-gradient-to-l from-[#7c3aed] via-[#4c1d95] to-[#1f1147] bg-clip-text">صولة وجولة</span>
-                  <span className="pointer-events-none absolute -bottom-1 right-0 h-[3px] w-10 rounded-full bg-gradient-to-l from-[#c4b5fd] to-[#7c3aed] md:w-12" />
+                  <span className="pointer-events-none absolute -bottom-1 right-0 h-[3px] w-9 rounded-full bg-gradient-to-l from-[#c4b5fd] to-[#7c3aed] md:w-10" />
                 </div>
                 {renderEndGameButton()}
               </div>
@@ -771,24 +922,58 @@ export default function CategoriesPage() {
         {/* لوحة الفئات */}
         <div className={`transition ${isQuestionOpen ? "pointer-events-none opacity-35 blur-[4px]" : ""}`}>
           <div className={isSixCategoryBoard ? "grid grid-cols-6 gap-2 sm:gap-3" : "grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-4"}>
-          {gameCategories.map((category) => (
-            <div key={category.id} className="flex flex-col">
+          {gameCategories.map((category) => {
+            const artwork = getCategoryArtwork(category.name)
+
+            return (
+            <div key={category.id} className="flex flex-col overflow-hidden rounded-[1.1rem] border-2 border-[#8cd7cd]/55 bg-[linear-gradient(180deg,rgba(236,253,245,0.76)_0%,rgba(236,254,255,0.6)_100%)] shadow-[0_12px_28px_rgba(13,148,136,0.08)] backdrop-blur-md">
               {/* عنوان الفئة */}
-              <div className={`rounded-t-lg bg-[linear-gradient(135deg,#7c3aed_0%,#6d28d9_100%)] text-center font-bold text-white shadow-md ${isSixCategoryBoard ? "p-3 text-sm lg:text-base" : "p-2 sm:p-3 text-sm sm:text-base"}`}>
-                {category.name}
+              <div
+                className={`relative overflow-hidden text-center font-bold text-white ${
+                  artwork
+                    ? isSixCategoryBoard
+                      ? "min-h-[110px]"
+                      : "min-h-[118px] sm:min-h-[132px]"
+                    : isSixCategoryBoard
+                      ? "min-h-[82px]"
+                      : "min-h-[92px]"
+                }`}
+              >
+                {artwork ? (
+                  <div
+                    className="absolute inset-0 bg-cover bg-no-repeat"
+                    style={{
+                      backgroundImage: `url(${artwork.imageUrl})`,
+                      backgroundPosition: artwork.imagePosition ?? "center",
+                    }}
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-[linear-gradient(135deg,#7c3aed_0%,#6d28d9_100%)]" aria-hidden="true" />
+                )}
+                <div
+                  className={`absolute inset-0 ${artwork?.overlayClassName ?? "bg-[linear-gradient(180deg,rgba(76,29,149,0.18)_0%,rgba(76,29,149,0.58)_46%,rgba(49,18,109,0.92)_100%)]"}`}
+                  aria-hidden="true"
+                />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[46%] bg-[linear-gradient(180deg,rgba(14,7,32,0)_0%,rgba(14,7,32,0.68)_100%)]" aria-hidden="true" />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-5 bg-[linear-gradient(180deg,rgba(14,7,32,0)_0%,rgba(124,58,237,0.12)_100%)]" aria-hidden="true" />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-[linear-gradient(90deg,rgba(124,58,237,0)_0%,rgba(167,139,250,0.72)_20%,rgba(139,92,246,0.98)_50%,rgba(167,139,250,0.72)_80%,rgba(124,58,237,0)_100%)]" aria-hidden="true" />
+                <div className={`relative flex h-full items-end justify-center px-3 pb-2.5 [text-shadow:0_3px_14px_rgba(0,0,0,0.8)] ${isSixCategoryBoard ? "pt-4 text-sm lg:text-base" : "pt-5 text-sm sm:text-base lg:text-lg"}`}>
+                  {category.name}
+                </div>
               </div>
 
               {/* الأسئلة */}
-              <div className={`flex flex-col ${isSixCategoryBoard ? "gap-1.5" : "gap-1 sm:gap-2"}`}>
-                {category.questions.map((question) => (
+              <div className="flex flex-col">
+                {category.questions.map((question, questionIndex) => (
                   <button
                     key={question.id}
                     onClick={() => handleQuestionClick(category.id, question)}
                     disabled={question.answered}
-                    className={`${isSixCategoryBoard ? "min-h-[84px] px-3 py-4 text-lg" : "p-2 sm:p-4 text-base sm:text-xl"} rounded-lg font-bold transition-all ${
+                    className={`${isSixCategoryBoard ? "min-h-[78px] px-3 py-3 text-base lg:text-lg" : "min-h-[84px] p-3 sm:p-3.5 text-base sm:text-lg"} ${questionIndex === 0 ? "border-t-2 border-[#efe7ff]" : ""} font-bold transition-all ${
                       question.answered
-                        ? "bg-white/50 text-gray-300 cursor-not-allowed border-2 border-gray-200"
-                        : "bg-white text-[#1f1147] hover:bg-[#faf7ff] cursor-pointer shadow-md hover:shadow-lg border-2 border-[#e9e2fb] hover:border-[#7c3aed]/35"
+                        ? "bg-[linear-gradient(180deg,rgba(236,253,245,0.4)_0%,rgba(236,254,255,0.28)_100%)] text-[#8aa5a1] cursor-not-allowed border-b border-[#cfecea]"
+                        : "bg-[linear-gradient(180deg,rgba(240,253,250,0.82)_0%,rgba(236,254,255,0.62)_100%)] text-[#134e4a] hover:bg-[linear-gradient(180deg,rgba(204,251,241,0.9)_0%,rgba(207,250,254,0.68)_100%)] cursor-pointer border-b border-[#cfecea]"
                     }`}
                   >
                     {question.answered ? "✓" : question.points}
@@ -796,7 +981,8 @@ export default function CategoriesPage() {
                 ))}
               </div>
             </div>
-          ))}
+            )
+          })}
           </div>
         </div>
       </div>
@@ -806,7 +992,7 @@ export default function CategoriesPage() {
         <>
           <div className="pointer-events-none fixed inset-0 z-40 bg-black/20" />
           <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pb-6 pt-40 sm:pt-44">
-            <div className="w-full max-w-2xl rounded-2xl border border-[#7c3aed]/15 bg-white p-5 shadow-[0_24px_80px_rgba(31,17,71,0.18)] sm:p-6">
+            <div className="w-full max-w-2xl rounded-2xl border border-[#8cd7cd]/55 bg-[linear-gradient(135deg,rgba(236,253,245,0.92)_0%,rgba(236,254,255,0.74)_100%)] p-5 shadow-[0_24px_80px_rgba(13,148,136,0.16)] backdrop-blur-xl sm:p-6">
               <div className="space-y-2 text-center text-[#1a2332]">
                 <div className="text-xl sm:text-3xl font-semibold">السؤال الحالي</div>
                 <div className="text-lg sm:text-2xl text-[#7c3aed]">{selectedQuestion?.points} نقطة</div>
@@ -817,14 +1003,14 @@ export default function CategoriesPage() {
               </div>
 
               <div className="space-y-4 py-3 sm:space-y-5 sm:py-4">
-                <div className="rounded-lg border-2 border-[#7c3aed]/15 bg-[linear-gradient(180deg,#ffffff_0%,#faf7ff_100%)] p-4 sm:p-5">
+                <div className="rounded-lg border-2 border-[#8cd7cd]/55 bg-[linear-gradient(180deg,rgba(240,253,250,0.9)_0%,rgba(236,254,255,0.65)_100%)] p-4 sm:p-5">
                   <p className="text-center text-lg font-semibold text-[#1a2332] sm:text-2xl">
                     {selectedQuestion?.question}
                   </p>
                 </div>
 
                 {showAnswer ? (
-                  <div className="rounded-lg border-2 border-[#7c3aed]/25 bg-[linear-gradient(180deg,#f8f5ff_0%,#ffffff_100%)] p-4 sm:p-5">
+                  <div className="rounded-lg border-2 border-[#8cd7cd]/55 bg-[linear-gradient(180deg,rgba(204,251,241,0.78)_0%,rgba(236,254,255,0.68)_100%)] p-4 sm:p-5">
                     <p className="text-center text-base font-bold text-[#1a2332] sm:text-xl">
                       الإجابة: {selectedQuestion?.answer}
                     </p>

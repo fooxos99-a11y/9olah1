@@ -511,7 +511,7 @@ export default function MillionaireGamePage() {
         <div dir={hasStarted ? "ltr" : "rtl"} className={`grid grid-cols-1 ${hasStarted ? "gap-6 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-stretch" : ""}`}>
           <main dir="rtl" className={hasStarted ? "space-y-6 xl:order-1" : "flex min-h-[calc(100vh-2rem)] items-center justify-center xl:order-1"}>
             {!hasStarted ? (
-              <div className="w-full rounded-[32px] border border-[#7c3aed]/10 bg-white/90 p-8 md:p-12 shadow-[0_24px_80px_rgba(124,58,237,0.08)] backdrop-blur">
+              <div className="w-full rounded-[32px] border border-[#d8c9fb]/45 bg-[linear-gradient(135deg,rgba(255,255,255,0.44)_0%,rgba(244,239,255,0.2)_100%)] p-8 shadow-[0_24px_80px_rgba(124,58,237,0.08)] backdrop-blur-xl md:p-12">
                 <div className="mx-auto max-w-xl text-center space-y-8">
                   <div className="space-y-4">
                     <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[28px] bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] text-white shadow-lg shadow-[#7c3aed]/25">

@@ -32,11 +32,16 @@ export async function GET(request: Request) {
     const supabase = await getSupabase()
     const { searchParams } = new URL(request.url)
     const stageId = searchParams.get("stage_id")
+    const limit = Number(searchParams.get("limit") || "0")
     let query = supabase.from("guess_images").select("*")
     if (stageId) {
       query = query.eq("stage_id", stageId)
     }
-    const { data, error } = await query.order("created_at", { ascending: false })
+    query = query.order("id", { ascending: true })
+    if (limit > 0) {
+      query = query.limit(limit)
+    }
+    const { data, error } = await query
     if (error) throw error
     return NextResponse.json(data || [])
   } catch (error) {
