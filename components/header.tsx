@@ -19,7 +19,7 @@ const navItems = [
   { href: "/", label: "الرئيسية" },
   { href: "/competitions", label: "الألعاب" },
   { href: "/contact", label: "تواصل معنا" },
-  { href: "/competitions/letter-hive-live", label: "بطولة" },
+  { href: "/competitions/letter-hive-live", label: "البطولة" },
   { href: "/admin", label: "لوحة التحكم" },
 ]
 
