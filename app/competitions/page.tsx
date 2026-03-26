@@ -53,9 +53,9 @@ const games: GameCard[] = [
     available: true,
     path: "/competitions/categories",
     accent: "#7c3aed",
-    surfaceClass: "bg-white text-slate-800 border-slate-100 hover:border-[#7c3aed]/30",
-    glowClass: "bg-[#7c3aed]/5",
-    patternClass: "bg-[radial-gradient(#7c3aed_1px,transparent_1px)] [background-size:24px_24px] opacity-5",
+    surfaceClass: "bg-white text-[#1f1147] border-[#7c3aed]/10 shadow-[0_8px_30px_rgba(124,58,237,0.04)]",
+    glowClass: "bg-[#7c3aed]/10",
+    patternClass: "bg-[linear-gradient(to_right,#f3e8ff_1px,transparent_1px),linear-gradient(to_bottom,#f3e8ff_1px,transparent_1px)] [background-size:2rem_2rem] opacity-[0.4]",
   },
   {
     id: "auction",
@@ -65,9 +65,9 @@ const games: GameCard[] = [
     available: true,
     path: "/competitions/auction",
     accent: "#ea580c",
-    surfaceClass: "bg-white text-slate-800 border-slate-100 hover:border-[#ea580c]/30",
-    glowClass: "bg-[#ea580c]/5",
-    patternClass: "bg-[radial-gradient(#ea580c_1px,transparent_1px)] [background-size:24px_24px] opacity-5",
+    surfaceClass: "bg-white text-[#1f1147] border-[#7c3aed]/10 shadow-[0_8px_30px_rgba(124,58,237,0.04)]",
+    glowClass: "bg-[#7c3aed]/10",
+    patternClass: "bg-[linear-gradient(to_right,#f3e8ff_1px,transparent_1px),linear-gradient(to_bottom,#f3e8ff_1px,transparent_1px)] [background-size:2rem_2rem] opacity-[0.4]",
   },
   {
     id: "guess-images",
@@ -77,9 +77,9 @@ const games: GameCard[] = [
     available: true,
     path: "/competitions/guess-images",
     accent: "#0f766e",
-    surfaceClass: "bg-white text-slate-800 border-slate-100 hover:border-[#0f766e]/30",
-    glowClass: "bg-[#0f766e]/5",
-    patternClass: "bg-[radial-gradient(#0f766e_1px,transparent_1px)] [background-size:24px_24px] opacity-5",
+    surfaceClass: "bg-white text-[#1f1147] border-[#7c3aed]/10 shadow-[0_8px_30px_rgba(124,58,237,0.04)]",
+    glowClass: "bg-[#7c3aed]/10",
+    patternClass: "bg-[linear-gradient(to_right,#f3e8ff_1px,transparent_1px),linear-gradient(to_bottom,#f3e8ff_1px,transparent_1px)] [background-size:2rem_2rem] opacity-[0.4]",
   },
   {
     id: "letter-hive",
@@ -90,9 +90,9 @@ const games: GameCard[] = [
     available: true,
     path: "/competitions/letter-hive/teams",
     accent: "#16a34a",
-    surfaceClass: "bg-white text-slate-800 border-slate-100 hover:border-[#16a34a]/30",
-    glowClass: "bg-[#16a34a]/5",
-    patternClass: "bg-[radial-gradient(#16a34a_1px,transparent_1px)] [background-size:24px_24px] opacity-5",
+    surfaceClass: "bg-white text-[#1f1147] border-[#7c3aed]/10 shadow-[0_8px_30px_rgba(124,58,237,0.04)]",
+    glowClass: "bg-[#7c3aed]/10",
+    patternClass: "bg-[linear-gradient(to_right,#f3e8ff_1px,transparent_1px),linear-gradient(to_bottom,#f3e8ff_1px,transparent_1px)] [background-size:2rem_2rem] opacity-[0.4]",
   },
   {
     id: "millionaire-game",
@@ -102,9 +102,9 @@ const games: GameCard[] = [
     available: false,
     path: "/competitions/millionaire-game",
     accent: "#2563eb",
-    surfaceClass: "bg-white text-slate-800 border-slate-100 hover:border-[#2563eb]/30",
-    glowClass: "bg-[#2563eb]/5",
-    patternClass: "bg-[radial-gradient(#2563eb_1px,transparent_1px)] [background-size:24px_24px] opacity-5",
+    surfaceClass: "bg-white text-[#1f1147] border-[#7c3aed]/10 shadow-[0_8px_30px_rgba(124,58,237,0.04)]",
+    glowClass: "bg-[#7c3aed]/10",
+    patternClass: "bg-[linear-gradient(to_right,#f3e8ff_1px,transparent_1px),linear-gradient(to_bottom,#f3e8ff_1px,transparent_1px)] [background-size:2rem_2rem] opacity-[0.4]",
   },
   {
     id: "family-feud",
@@ -114,9 +114,9 @@ const games: GameCard[] = [
     available: false,
     path: "/competitions/family-feud",
     accent: "#dc2626",
-    surfaceClass: "bg-white text-slate-800 border-slate-100 hover:border-[#dc2626]/30",
-    glowClass: "bg-[#dc2626]/5",
-    patternClass: "bg-[radial-gradient(#dc2626_1px,transparent_1px)] [background-size:24px_24px] opacity-5",
+    surfaceClass: "bg-white text-[#1f1147] border-[#7c3aed]/10 shadow-[0_8px_30px_rgba(124,58,237,0.04)]",
+    glowClass: "bg-[#7c3aed]/10",
+    patternClass: "bg-[linear-gradient(to_right,#f3e8ff_1px,transparent_1px),linear-gradient(to_bottom,#f3e8ff_1px,transparent_1px)] [background-size:2rem_2rem] opacity-[0.4]",
   },
   {
     id: "higher-lower",
@@ -126,9 +126,9 @@ const games: GameCard[] = [
     available: false,
     path: "/competitions/higher-lower",
     accent: "#64748b",
-    surfaceClass: "bg-white text-slate-800 border-slate-100 hover:border-[#64748b]/30",
-    glowClass: "bg-[#64748b]/5",
-    patternClass: "bg-[radial-gradient(#64748b_1px,transparent_1px)] [background-size:24px_24px] opacity-5",
+    surfaceClass: "bg-white text-[#1f1147] border-[#7c3aed]/10 shadow-[0_8px_30px_rgba(124,58,237,0.04)]",
+    glowClass: "bg-[#7c3aed]/10",
+    patternClass: "bg-[linear-gradient(to_right,#f3e8ff_1px,transparent_1px),linear-gradient(to_bottom,#f3e8ff_1px,transparent_1px)] [background-size:2rem_2rem] opacity-[0.4]",
   },
   {
     id: "focus-challenge",
@@ -138,9 +138,9 @@ const games: GameCard[] = [
     available: false,
     path: "/competitions/focus-challenge",
     accent: "#f59e0b",
-    surfaceClass: "bg-white text-slate-800 border-slate-100 hover:border-[#f59e0b]/30",
-    glowClass: "bg-[#f59e0b]/5",
-    patternClass: "bg-[radial-gradient(#f59e0b_1px,transparent_1px)] [background-size:24px_24px] opacity-5",
+    surfaceClass: "bg-white text-[#1f1147] border-[#7c3aed]/10 shadow-[0_8px_30px_rgba(124,58,237,0.04)]",
+    glowClass: "bg-[#7c3aed]/10",
+    patternClass: "bg-[linear-gradient(to_right,#f3e8ff_1px,transparent_1px),linear-gradient(to_bottom,#f3e8ff_1px,transparent_1px)] [background-size:2rem_2rem] opacity-[0.4]",
   },
 ]
 
@@ -452,7 +452,7 @@ export default function CompetitionsPage() {
                   <div
                     className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
                     style={{
-                      background: `radial-gradient(circle at 14% 18%, ${game.accent}08 0%, transparent 40%), radial-gradient(circle at 86% 72%, ${game.accent}06 0%, transparent 40%)`,
+                      background: `radial-gradient(circle at 14% 18%, #7c3aed04 0%, transparent 40%), radial-gradient(circle at 86% 72%, #7c3aed04 0%, transparent 40%)`,
                     }}
                   />
                   <div className={`absolute -left-8 top-1/2 h-36 w-36 -translate-y-1/2 rounded-full blur-3xl opacity-50 transition-opacity duration-500 group-hover:opacity-100 ${cardTheme.glowClass}`} />
@@ -490,15 +490,15 @@ export default function CompetitionsPage() {
                         {isUnlocked && isLoading ? (
                           <div
                             className="inline-flex items-center justify-center w-full gap-2 rounded-xl px-4 py-3 text-sm font-bold text-white shadow-sm transition-all"
-                            style={{ backgroundColor: game.accent }}
+                            style={{ backgroundColor: "#7c3aed" }}
                           >
                             <Loader2 className="h-5 w-5 animate-spin" />
                             جاري التحميل
                           </div>
                         ) : (
                           <div
-                            className="inline-flex items-center justify-center w-full gap-3 rounded-xl px-6 py-3.5 text-base font-bold text-white shadow-sm transition-all hover:opacity-90"
-                            style={{ backgroundColor: game.accent }}
+                            className="inline-flex items-center justify-center w-full gap-3 rounded-xl px-6 py-3.5 text-base font-bold text-white shadow-sm transition-all hover:bg-[#6d28d9]"
+                            style={{ backgroundColor: "#7c3aed" }}
                           >
                             <span>
                               {!game.available ? "بانتظار الإطلاق" : isUnlocked ? "ادخل اللعبة" : "سجّل لفتح اللعبة"}
