@@ -426,11 +426,10 @@ export default function CompetitionsPage() {
             <h1 className="text-3xl font-black text-[#1f1147] md:text-5xl">اختر لعبتك الان!</h1>
           </div>
 
-          <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {games.map((game, index) => {
               const isLoading = loadingGameId === game.id
               const isUnlocked = authResolved && game.available && (game.publicAccess || hasFullAccess || hasRegisteredAccess)
-              const isAlternate = index % 2 === 1
               const cardTheme = {
                 surfaceClass: game.surfaceClass,
                 glowClass: game.glowClass,
@@ -445,7 +444,7 @@ export default function CompetitionsPage() {
                   onClick={() => {
                     handleGameNavigation(game.path, game.id)
                   }}
-                  className={`group relative w-full overflow-hidden rounded-[2rem] border text-right shadow-[0_24px_80px_rgba(15,23,42,0.06)] transition duration-300 ${cardTheme.surfaceClass} ${
+                  className={`group relative flex w-full flex-col overflow-hidden rounded-[2rem] border text-right shadow-[0_24px_80px_rgba(15,23,42,0.06)] transition duration-300 ${cardTheme.surfaceClass} ${
                     isUnlocked && loadingGameId === null
                       ? "cursor-pointer hover:-translate-y-1 hover:shadow-[0_30px_90px_rgba(15,23,42,0.12)]"
                       : "cursor-pointer opacity-85"
@@ -459,10 +458,15 @@ export default function CompetitionsPage() {
                     }}
                   />
                   <div className={`absolute -left-8 top-1/2 h-36 w-36 -translate-y-1/2 rounded-full blur-3xl ${cardTheme.glowClass}`} />
-                  <div className={`relative grid gap-6 px-6 py-7 md:grid-cols-2 md:items-center md:px-8 md:py-8 ${isAlternate ? "" : ""}`}>
-                    <div className={`space-y-4 ${isAlternate ? "md:order-2" : "md:order-1"}`}>
+                  
+                  <div className="relative flex flex-col p-6 w-full h-full lg:p-8">
+                    <div className="mb-6 flex items-center justify-center min-h-[220px]">
+                      <GameArtwork game={game} index={index} />
+                    </div>
+
+                    <div className="flex flex-1 flex-col space-y-4">
                       <div className="space-y-2">
-                        <h2 className="text-2xl font-black tracking-[-0.02em] md:text-[2rem]">{game.title}</h2>
+                        <h2 className="text-2xl font-black tracking-[-0.02em] md:text-[1.75rem]">{game.title}</h2>
                         {!game.available ? (
                           <span
                             className="inline-flex rounded-full px-3 py-1 text-xs font-bold"
@@ -482,15 +486,16 @@ export default function CompetitionsPage() {
                         ) : null}
                       </div>
 
-                      <p className="max-w-3xl text-lg leading-8 opacity-85 md:text-[1.15rem]">{game.description}</p>
-                      <div className="pt-2">
+                      <p className="text-base leading-7 opacity-85">{game.description}</p>
+                      
+                      <div className="mt-auto pt-6">
                         {isUnlocked && isLoading ? (
-                          <div className="inline-flex items-center gap-2 rounded-full bg-white/60 px-4 py-3 text-sm font-bold backdrop-blur">
+                          <div className="inline-flex items-center justify-center w-full gap-2 rounded-full bg-white/60 px-4 py-3 text-sm font-bold backdrop-blur">
                             <Loader2 className="h-5 w-5 animate-spin" />
                             جاري التحميل
                           </div>
                         ) : (
-                          <div className="inline-flex items-center gap-3 rounded-full bg-white/60 px-8 py-4 text-base font-black backdrop-blur group-hover:bg-white/80 md:px-10 md:py-4 md:text-lg">
+                          <div className="inline-flex items-center justify-center w-full gap-3 rounded-full bg-white/60 px-6 py-3.5 text-base font-black backdrop-blur group-hover:bg-white/80 transition-colors">
                             <span>
                               {!game.available ? "بانتظار الإطلاق" : isUnlocked ? "ادخل اللعبة" : "سجّل لفتح اللعبة"}
                             </span>
@@ -498,10 +503,6 @@ export default function CompetitionsPage() {
                           </div>
                         )}
                       </div>
-                    </div>
-
-                    <div className={`flex items-center justify-center ${isAlternate ? "md:order-1" : "md:order-2"}`}>
-                      <GameArtwork game={game} index={index} />
                     </div>
                   </div>
                 </button>
