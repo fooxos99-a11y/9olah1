@@ -1,12 +1,14 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
-import { Lock, Trophy, Unlock } from "lucide-react"
+import { Copy, ExternalLink, Lock, Trophy, Unlock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SiteLoader } from "@/components/ui/site-loader"
 import { LETTER_HIVE_LIVE_BASE_LETTERS } from "@/lib/letter-hive-live"
+import { supabase } from "@/lib/supabase-client"
 import { LetterHiveLiveView } from "@/components/games/letter-hive-live-view"
+import { toast } from "@/hooks/use-toast"
 
 type PresenterMatch = {
   id: string
@@ -41,9 +43,51 @@ type PreloadedQuestion = {
   answer: string
 }
 
+const LIVE_SYNC_INTERVAL_MS = 2000
+
+function TeamLinkCard({
+  title,
+  href,
+  teamName,
+  accentClass,
+  onCopy,
+}: {
+  title: string
+  href: string
+  teamName: string | null
+  accentClass: string
+  onCopy: () => void
+}) {
+  const joined = Boolean(teamName)
+
+  return (
+    <div className="rounded-[1.8rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(248,244,255,0.9)_100%)] p-4 text-right shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-base font-black text-[#1f1147]">{title}</p>
+          <p className={`mt-2 inline-flex rounded-full px-3 py-1.5 text-sm font-black ${accentClass}`}>
+            {joined ? `دخل الفريق: ${teamName}` : "بانتظار دخول الفريق"}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-[#e7dcff] bg-white/80 px-4 py-3 text-left text-xs text-[#5b5570]" dir="ltr">
+        <span className="block truncate">{href}</span>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button type="button" onClick={onCopy} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
+          <Copy className="h-4 w-4" />نسخ الرابط
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export default function LetterHiveLivePresenterPage() {
   const params = useParams<{ token: string }>()
   const token = Array.isArray(params?.token) ? params.token[0] : params?.token || ""
+  const liveChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   const [match, setMatch] = useState<PresenterMatch | null>(null)
   const [loading, setLoading] = useState(true)
@@ -51,6 +95,34 @@ export default function LetterHiveLivePresenterPage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [selectedCellIndex, setSelectedCellIndex] = useState<number | null>(null)
   const [questionsByLetter, setQuestionsByLetter] = useState<Record<string, PreloadedQuestion[]>>({})
+
+  const handleCopy = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      toast({
+        title: "تم نسخ الرابط",
+        description: `تم نسخ ${label}.`,
+      })
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "تعذر النسخ",
+        description: "المتصفح منع نسخ الرابط تلقائيًا.",
+      })
+    }
+  }
+
+  const broadcastMatchUpdate = async () => {
+    if (!liveChannelRef.current) {
+      return
+    }
+
+    await liveChannelRef.current.send({
+      type: "broadcast",
+      event: "match-updated",
+      payload: { token, sentAt: Date.now() },
+    })
+  }
 
   const fetchMatch = async (showLoader = false) => {
     if (!token) {
@@ -93,10 +165,44 @@ export default function LetterHiveLivePresenterPage() {
 
     const intervalId = window.setInterval(() => {
       void fetchMatch(false)
-    }, 1500)
+    }, LIVE_SYNC_INTERVAL_MS)
 
     return () => window.clearInterval(intervalId)
   }, [token])
+
+  useEffect(() => {
+    if (!match?.id) {
+      return
+    }
+
+    const channel = supabase
+      .channel(`letter-hive-live-room:${match.id}`)
+      .on("broadcast", { event: "match-updated" }, () => {
+        void fetchMatch(false)
+      })
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "letter_hive_live_matches",
+          filter: `id=eq.${match.id}`,
+        },
+        () => {
+          void fetchMatch(false)
+        },
+      )
+      .subscribe()
+
+    liveChannelRef.current = channel
+
+    return () => {
+      if (liveChannelRef.current === channel) {
+        liveChannelRef.current = null
+      }
+      void supabase.removeChannel(channel)
+    }
+  }, [match?.id])
 
   useEffect(() => {
     if (!token) {
@@ -193,6 +299,7 @@ export default function LetterHiveLivePresenterPage() {
 
       setMatch(data.match)
       setError("")
+      void broadcastMatchUpdate()
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "تعذر تحديث الحالة")
     } finally {
@@ -251,6 +358,7 @@ export default function LetterHiveLivePresenterPage() {
 
       setMatch(data.match)
       setError("")
+      void broadcastMatchUpdate()
     } catch (requestError) {
       if (nextPreloadedQuestion && letter) {
         setQuestionsByLetter((previousQuestions) => ({
@@ -348,11 +456,47 @@ export default function LetterHiveLivePresenterPage() {
       questionOverlay={
         match?.status === "waiting" ? (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.36)", backdropFilter: "blur(5px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 110, padding: "16px" }}>
-            <div style={{ background: "white", padding: "36px 30px", borderRadius: "25px", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", minWidth: 320, maxWidth: 520, width: "100%" }}>
+            <div style={{ background: "white", padding: "36px 30px", borderRadius: "25px", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", minWidth: 320, maxWidth: 900, width: "100%" }}>
               <h3 style={{ marginBottom: 12, fontSize: "1.6rem", color: "#2c3e50", fontWeight: 900 }}>جاهز لبدء البطولة</h3>
               <p style={{ marginBottom: 24, fontSize: "1rem", color: "#6b7280", lineHeight: 1.9 }}>
                 {canStartGame ? "بعد الضغط على بدء اللعبة تستطيع اختيار أي خلية ليظهر سؤالها الخاص من قاعدة البطولة." : "يجب أن يدخل الفريقان أولاً قبل أن تستطيع بدء اللعبة."}
               </p>
+              <div className="mb-5 rounded-[1.6rem] border border-[#e7dcff] bg-[linear-gradient(180deg,rgba(248,244,255,0.9)_0%,rgba(255,255,255,0.96)_100%)] p-4 text-right shadow-[0_12px_30px_rgba(124,58,237,0.08)]">
+                <p className="text-sm font-black text-[#6d28d9]">رابط المقدم</p>
+                <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <p className="min-w-0 truncate rounded-2xl border border-[#e7dcff] bg-white/80 px-4 py-3 text-left text-xs text-[#5b5570]" dir="ltr">
+                    {match?.links.presenter}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" onClick={() => void handleCopy(match?.links.presenter || "", "رابط المقدم")} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
+                      <Copy className="h-4 w-4" />نسخ
+                    </Button>
+                    <Button type="button" asChild className="rounded-2xl bg-[#7c3aed] text-white hover:bg-[#6d28d9]">
+                      <a href={match?.links.presenter || "#"} target="_blank" rel="noreferrer">
+                        <ExternalLink className="h-4 w-4" />فتح
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-6 grid gap-4 md:grid-cols-2">
+                <TeamLinkCard
+                  title="رابط الفريق الأول"
+                  href={match?.links.teamA || ""}
+                  teamName={match?.teamAName || null}
+                  accentClass="bg-[#df103a]/10 text-[#df103a]"
+                  onCopy={() => void handleCopy(match?.links.teamA || "", "رابط الفريق الأول")}
+                />
+                <TeamLinkCard
+                  title="رابط الفريق الثاني"
+                  href={match?.links.teamB || ""}
+                  teamName={match?.teamBName || null}
+                  accentClass="bg-[#10dfb5]/14 text-[#08755f]"
+                  onCopy={() => void handleCopy(match?.links.teamB || "", "رابط الفريق الثاني")}
+                />
+              </div>
+
               <Button type="button" onClick={() => void updateState({ is_open: true, status: "live" })} disabled={actionLoading || !canStartGame} className="rounded-2xl bg-[#7c3aed] px-8 text-white hover:bg-[#6d28d9] disabled:opacity-50">
                 بدء اللعبة
               </Button>
@@ -373,18 +517,26 @@ export default function LetterHiveLivePresenterPage() {
               {match.showAnswer && match.currentAnswer ? (
                 <div style={{ fontSize: "1.5rem", color: "#008a1e", marginBottom: 18, fontWeight: "bold" }}>{match.currentAnswer}</div>
               ) : null}
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
-                <Button type="button" onClick={() => void handleRevealAnswer()} disabled={actionLoading || !match.currentAnswer || Boolean(match.showAnswer)} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
-                  إظهار الجواب
-                </Button>
-                <Button type="button" onClick={() => void handleClearCurrent()} disabled={actionLoading} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
-                  <Lock className="h-4 w-4" />إلغاء السؤال
-                </Button>
-                <Button type="button" onClick={() => void updateState({ status: "finished", is_open: false, buzz_enabled: false })} disabled={actionLoading || match.status === "finished"} className="rounded-2xl bg-red-600 text-white hover:bg-red-700">
-                  <Trophy className="h-4 w-4" />إنهاء المباراة
-                </Button>
-              </div>
-              {match.showAnswer ? (
+              {!match.currentAnswer ? (
+                <div className="mt-6 flex justify-center">
+                  <Button type="button" onClick={() => void handleClearCurrent()} disabled={actionLoading} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
+                    <Lock className="h-4 w-4" />إغلاق
+                  </Button>
+                </div>
+              ) : (
+                <div className="mt-6 flex flex-wrap justify-center gap-2">
+                  <Button type="button" onClick={() => void handleRevealAnswer()} disabled={actionLoading || Boolean(match.showAnswer)} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
+                    إظهار الجواب
+                  </Button>
+                  <Button type="button" onClick={() => void handleClearCurrent()} disabled={actionLoading} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
+                    <Lock className="h-4 w-4" />إلغاء السؤال
+                  </Button>
+                  <Button type="button" onClick={() => void updateState({ status: "finished", is_open: false, buzz_enabled: false })} disabled={actionLoading || match.status === "finished"} className="rounded-2xl bg-red-600 text-white hover:bg-red-700">
+                    <Trophy className="h-4 w-4" />إنهاء المباراة
+                  </Button>
+                </div>
+              )}
+              {match.showAnswer && match.currentAnswer ? (
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   <Button type="button" disabled={actionLoading || match.currentCellIndex === null} onClick={() => void handleAssignCell("team_a")} className="rounded-2xl bg-[#df103a] text-white hover:opacity-95">
                     {match.teamAName || "الفريق الأول"}

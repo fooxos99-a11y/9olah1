@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
-import { Radio } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SiteLoader } from "@/components/ui/site-loader"
 import { LETTER_HIVE_LIVE_BASE_LETTERS } from "@/lib/letter-hive-live"
+import { supabase } from "@/lib/supabase-client"
 import { LetterHiveLiveView } from "@/components/games/letter-hive-live-view"
 
 type TeamRole = "team_a" | "team_b"
@@ -32,9 +32,12 @@ type TeamMatch = {
   claimedCells: Array<TeamRole | null>
 }
 
+const LIVE_SYNC_INTERVAL_MS = 2000
+
 export default function LetterHiveLiveTeamPage() {
   const params = useParams<{ token: string }>()
   const token = Array.isArray(params?.token) ? params.token[0] : params?.token || ""
+  const liveChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   const [match, setMatch] = useState<TeamMatch | null>(null)
   const [loading, setLoading] = useState(true)
@@ -42,6 +45,18 @@ export default function LetterHiveLiveTeamPage() {
   const [buzzing, setBuzzing] = useState(false)
   const [teamName, setTeamName] = useState("")
   const [error, setError] = useState("")
+
+  const broadcastMatchUpdate = async () => {
+    if (!liveChannelRef.current) {
+      return
+    }
+
+    await liveChannelRef.current.send({
+      type: "broadcast",
+      event: "match-updated",
+      payload: { token, sentAt: Date.now() },
+    })
+  }
 
   const fetchMatch = async (showLoader = false) => {
     if (!token) {
@@ -84,10 +99,44 @@ export default function LetterHiveLiveTeamPage() {
 
     const intervalId = window.setInterval(() => {
       void fetchMatch(false)
-    }, 1500)
+    }, LIVE_SYNC_INTERVAL_MS)
 
     return () => window.clearInterval(intervalId)
   }, [token])
+
+  useEffect(() => {
+    if (!match?.id) {
+      return
+    }
+
+    const channel = supabase
+      .channel(`letter-hive-live-room:${match.id}`)
+      .on("broadcast", { event: "match-updated" }, () => {
+        void fetchMatch(false)
+      })
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "letter_hive_live_matches",
+          filter: `id=eq.${match.id}`,
+        },
+        () => {
+          void fetchMatch(false)
+        },
+      )
+      .subscribe()
+
+    liveChannelRef.current = channel
+
+    return () => {
+      if (liveChannelRef.current === channel) {
+        liveChannelRef.current = null
+      }
+      void supabase.removeChannel(channel)
+    }
+  }, [match?.id, token])
 
   const ownTeamName = useMemo(() => {
     if (!match) {
@@ -144,6 +193,7 @@ export default function LetterHiveLiveTeamPage() {
 
       setMatch(data.match)
       setError("")
+      void broadcastMatchUpdate()
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "تعذر حفظ اسم الفريق")
     } finally {
@@ -169,6 +219,7 @@ export default function LetterHiveLiveTeamPage() {
 
       setMatch(data.match)
       setError("")
+      void broadcastMatchUpdate()
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "تعذر تسجيل السبق")
     } finally {
@@ -195,13 +246,7 @@ export default function LetterHiveLiveTeamPage() {
       <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#fff9f3_0%,#f7f7ff_48%,#ffffff_100%)] px-4 py-8" dir="rtl">
         <div className="w-full max-w-xl rounded-[2rem] border border-[#d8c9fb]/45 bg-[linear-gradient(135deg,rgba(255,255,255,0.62)_0%,rgba(246,242,255,0.28)_100%)] p-6 shadow-[0_24px_80px_rgba(124,58,237,0.08)] backdrop-blur-xl md:p-8">
           <div className="text-center">
-            <div className="mx-auto flex h-18 w-18 items-center justify-center rounded-[1.6rem] bg-[linear-gradient(135deg,#7c3aed_0%,#6d28d9_100%)] text-white shadow-[0_18px_40px_rgba(124,58,237,0.24)]">
-              <Radio className="h-8 w-8" />
-            </div>
-            <h1 className="mt-5 text-3xl font-black text-[#1f1147]">دخول الفريق</h1>
-            <p className="mt-3 text-sm leading-8 text-[#5b5570]">
-              اكتب اسم فريقك مرة واحدة فقط، ثم سيتم حفظه على هذا الرابط تلقائياً.
-            </p>
+            <h1 className="text-3xl font-black text-[#1f1147]">دخول الفريق</h1>
           </div>
 
           <div className="mt-6 space-y-4">

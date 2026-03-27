@@ -68,17 +68,17 @@ type LifelineButtonProps = {
 }
 
 const MAX_SELECTED_CATEGORIES = 6
-const CATEGORIES_BG_PATTERN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cg fill='none' stroke='%230f766e' stroke-opacity='0.14' stroke-width='1'%3E%3Cpath d='M0 80h240'/%3E%3Cpath d='M0 160h240'/%3E%3Cpath d='M80 0v240'/%3E%3Cpath d='M160 0v240'/%3E%3C/g%3E%3Cg fill='%23ffffff' fill-opacity='0.34'%3E%3Ccircle cx='80' cy='80' r='3'/%3E%3Ccircle cx='160' cy='160' r='3'/%3E%3Ccircle cx='160' cy='80' r='2'/%3E%3Ccircle cx='80' cy='160' r='2'/%3E%3C/g%3E%3C/svg%3E\")"
+const CATEGORIES_BG_PATTERN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cg fill='none' stroke='%237c3aed' stroke-opacity='0.09' stroke-width='1'%3E%3Cpath d='M0 80h240'/%3E%3Cpath d='M0 160h240'/%3E%3Cpath d='M80 0v240'/%3E%3Cpath d='M160 0v240'/%3E%3C/g%3E%3Cg fill='%23ffffff' fill-opacity='0.34'%3E%3Ccircle cx='80' cy='80' r='3'/%3E%3Ccircle cx='160' cy='160' r='3'/%3E%3Ccircle cx='160' cy='80' r='2'/%3E%3Ccircle cx='80' cy='160' r='2'/%3E%3C/g%3E%3C/svg%3E\")"
 
 function CategoriesPageBackground({ board = false }: { board?: boolean }) {
   return (
     <>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(20,184,166,0.2)_0%,rgba(20,184,166,0.08)_18%,rgba(20,184,166,0)_42%),radial-gradient(circle_at_86%_14%,rgba(8,145,178,0.18)_0%,rgba(8,145,178,0.08)_20%,rgba(8,145,178,0)_42%),radial-gradient(circle_at_72%_76%,rgba(250,204,21,0.18)_0%,rgba(250,204,21,0.06)_16%,rgba(250,204,21,0)_36%),radial-gradient(circle_at_26%_78%,rgba(251,146,60,0.14)_0%,rgba(251,146,60,0.05)_16%,rgba(251,146,60,0)_36%)]" />
-      <div className={`absolute -top-28 right-[-120px] rounded-full bg-[radial-gradient(circle,rgba(20,184,166,0.22)_0%,rgba(20,184,166,0.08)_34%,rgba(20,184,166,0)_70%)] blur-[10px] ${board ? "h-[420px] w-[420px]" : "h-[560px] w-[560px]"}`} />
-      <div className={`absolute -bottom-32 left-[-110px] rounded-full bg-[radial-gradient(circle,rgba(8,145,178,0.18)_0%,rgba(8,145,178,0.08)_34%,rgba(8,145,178,0)_72%)] blur-[12px] ${board ? "h-[440px] w-[440px]" : "h-[600px] w-[600px]"}`} />
-      <div className={`absolute left-[12%] top-[14%] rounded-full border border-white/45 bg-[linear-gradient(135deg,rgba(255,255,255,0.72)_0%,rgba(240,253,250,0.18)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-[2px] ${board ? "h-24 w-24" : "h-32 w-32"}`} />
-      <div className={`absolute bottom-[18%] right-[14%] rotate-[12deg] border border-[rgba(15,118,110,0.14)] bg-[linear-gradient(135deg,rgba(20,184,166,0.12)_0%,rgba(250,204,21,0.03)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] ${board ? "h-24 w-24 rounded-[1.75rem]" : "h-36 w-36 rounded-[2rem]"}`} />
-      <div className={`absolute left-[50%] top-[10%] -translate-x-1/2 rounded-full border border-white/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.56)_0%,rgba(236,253,245,0.08)_100%)] ${board ? "h-16 w-[240px]" : "h-20 w-[320px]"}`} />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(255,255,255,0.7)_0%,rgba(255,255,255,0.22)_18%,rgba(255,255,255,0)_42%),radial-gradient(circle_at_86%_14%,rgba(196,181,253,0.14)_0%,rgba(196,181,253,0.06)_20%,rgba(196,181,253,0)_42%),radial-gradient(circle_at_72%_76%,rgba(250,204,21,0.14)_0%,rgba(250,204,21,0.05)_16%,rgba(250,204,21,0)_36%),radial-gradient(circle_at_26%_78%,rgba(251,146,60,0.1)_0%,rgba(251,146,60,0.04)_16%,rgba(251,146,60,0)_36%)]" />
+      <div className={`absolute -top-28 right-[-120px] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.74)_0%,rgba(255,255,255,0.22)_34%,rgba(255,255,255,0)_70%)] blur-[10px] ${board ? "h-[420px] w-[420px]" : "h-[560px] w-[560px]"}`} />
+      <div className={`absolute -bottom-32 left-[-110px] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.7)_0%,rgba(196,181,253,0.08)_34%,rgba(255,255,255,0)_72%)] blur-[12px] ${board ? "h-[440px] w-[440px]" : "h-[600px] w-[600px]"}`} />
+      <div className={`absolute left-[12%] top-[14%] rounded-full border border-white/45 bg-[linear-gradient(135deg,rgba(255,255,255,0.78)_0%,rgba(243,244,246,0.18)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-[2px] ${board ? "h-24 w-24" : "h-32 w-32"}`} />
+      <div className={`absolute bottom-[18%] right-[14%] rotate-[12deg] border border-[rgba(124,58,237,0.1)] bg-[linear-gradient(135deg,rgba(255,255,255,0.3)_0%,rgba(250,204,21,0.03)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] ${board ? "h-24 w-24 rounded-[1.75rem]" : "h-36 w-36 rounded-[2rem]"}`} />
+      <div className={`absolute left-[50%] top-[10%] -translate-x-1/2 rounded-full border border-white/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.62)_0%,rgba(243,244,246,0.08)_100%)] ${board ? "h-16 w-[240px]" : "h-20 w-[320px]"}`} />
       <div
         className={`absolute inset-0 ${board ? "opacity-45" : "opacity-65"}`}
         style={{
@@ -90,7 +90,7 @@ function CategoriesPageBackground({ board = false }: { board?: boolean }) {
             : "radial-gradient(circle at center, black 42%, transparent 88%)",
         }}
       />
-      <div className={`absolute inset-[4%] rounded-[40px] border border-white/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.48)_0%,rgba(236,253,245,0.1)_34%,rgba(255,255,255,0.03)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] ${board ? "opacity-70" : "opacity-100"}`} />
+      <div className={`absolute inset-[4%] rounded-[40px] border border-white/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.56)_0%,rgba(245,243,255,0.1)_34%,rgba(255,255,255,0.03)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] ${board ? "opacity-70" : "opacity-100"}`} />
     </>
   )
 }
@@ -203,8 +203,8 @@ function LifelineButton({ icon, tooltip, ariaLabel, disabled = false, active = f
         className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-[#6d28d9] shadow-sm transition ${
           active
             ? "border-[#7c3aed]/45 bg-[#f5f3ff] ring-2 ring-[#7c3aed]/15"
-            : "border-[#89d8cf]/60 bg-[linear-gradient(135deg,rgba(240,253,250,0.78)_0%,rgba(236,254,255,0.52)_100%)] hover:border-[#4fd1c5] hover:bg-[linear-gradient(135deg,rgba(204,251,241,0.88)_0%,rgba(207,250,254,0.58)_100%)]"
-        } ${disabled ? "cursor-not-allowed border-[#c6ece7] bg-[linear-gradient(135deg,rgba(240,253,250,0.62)_0%,rgba(236,254,255,0.4)_100%)] text-[#8fb8b2] opacity-40 hover:border-[#c6ece7] hover:bg-[linear-gradient(135deg,rgba(240,253,250,0.62)_0%,rgba(236,254,255,0.4)_100%)]" : ""} ${used ? "opacity-45" : ""}`}
+            : "border-[#ddd6fe]/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.92)_0%,rgba(245,243,255,0.58)_100%)] hover:border-[#c4b5fd] hover:bg-[linear-gradient(135deg,rgba(250,245,255,0.96)_0%,rgba(237,233,254,0.68)_100%)]"
+        } ${disabled ? "cursor-not-allowed border-[#e9e5f7] bg-[linear-gradient(135deg,rgba(255,255,255,0.86)_0%,rgba(243,244,246,0.54)_100%)] text-[#c4bdd8] opacity-40 hover:border-[#e9e5f7] hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.86)_0%,rgba(243,244,246,0.54)_100%)]" : ""} ${used ? "opacity-45" : ""}`}
       >
         {icon}
       </button>
@@ -646,7 +646,7 @@ export default function CategoriesPage() {
       className={`min-w-[100px] rounded-[1.15rem] border px-2.5 py-1.5 text-center shadow-sm transition ${
         currentTurn === teamIdx
           ? "border-[#7c3aed]/45 bg-[#f5f3ff] ring-2 ring-[#7c3aed]/15"
-          : "border-[#89d8cf]/60 bg-[linear-gradient(135deg,rgba(240,253,250,0.78)_0%,rgba(236,254,255,0.52)_100%)]"
+          : "border-[#ddd6fe]/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.92)_0%,rgba(245,243,255,0.58)_100%)]"
       }`}
     >
       <div className="truncate text-[11px] font-black text-[#6d28d9] md:text-[13px]">{teamNames[teamIdx]}</div>
@@ -747,7 +747,6 @@ export default function CategoriesPage() {
       >
           <div className="space-y-5 md:px-2">
             <div className="space-y-4">
-              <div className="text-sm font-bold text-[#1f1147] md:text-base">أسماء الفرق</div>
             {teamNames.map((teamName, idx) => (
               <div key={idx} className="space-y-3">
                 <div className="text-sm font-bold text-[#1f1147] md:text-base">{`اسم الفريق ${idx + 1}`}</div>
@@ -885,7 +884,7 @@ export default function CategoriesPage() {
 
   // صفحة اللعبة
   return (
-      <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#f4fffc_0%,#ecfeff_32%,#fffbea_68%,#ffffff_100%)] px-2 py-4 sm:px-3 lg:px-4">
+      <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#fffaf6_0%,#f7f5ff_32%,#fffbea_68%,#ffffff_100%)] px-2 py-4 sm:px-3 lg:px-4">
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
           <CategoriesPageBackground board />
         </div>
@@ -894,7 +893,7 @@ export default function CategoriesPage() {
         <div className={`relative z-[60] mb-3 text-[#1f1147] sm:mb-4 ${
           isQuestionOpen
             ? "rounded-none border-transparent bg-transparent p-0 shadow-none backdrop-blur-0"
-            : "rounded-[1.48rem] border-2 border-[#8cd7cd]/55 bg-[linear-gradient(135deg,rgba(236,253,245,0.42)_0%,rgba(236,254,255,0.22)_100%)] px-3 py-2.5 shadow-[0_24px_80px_rgba(13,148,136,0.08)] backdrop-blur-2xl sm:px-3.5 sm:py-3"
+            : "rounded-[1.48rem] border-2 border-[#ddd6fe]/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.58)_0%,rgba(245,243,255,0.24)_100%)] px-3 py-2.5 shadow-[0_24px_80px_rgba(124,58,237,0.08)] backdrop-blur-2xl sm:px-3.5 sm:py-3"
         }`}>
           <div className="flex flex-col gap-2.5 xl:relative xl:min-h-[82px] xl:justify-center">
             <div className="flex justify-center transition xl:absolute xl:right-0 xl:top-1/2 xl:-translate-y-1/2">
@@ -926,7 +925,7 @@ export default function CategoriesPage() {
             const artwork = getCategoryArtwork(category.name)
 
             return (
-            <div key={category.id} className="flex flex-col overflow-hidden rounded-[1.1rem] border-2 border-[#8cd7cd]/55 bg-[linear-gradient(180deg,rgba(236,253,245,0.76)_0%,rgba(236,254,255,0.6)_100%)] shadow-[0_12px_28px_rgba(13,148,136,0.08)] backdrop-blur-md">
+            <div key={category.id} className="flex flex-col overflow-hidden rounded-[1.1rem] border-2 border-[#ddd6fe]/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.84)_0%,rgba(245,243,255,0.58)_100%)] shadow-[0_12px_28px_rgba(124,58,237,0.08)] backdrop-blur-md">
               {/* عنوان الفئة */}
               <div
                 className={`relative overflow-hidden text-center font-bold text-white ${
@@ -972,8 +971,8 @@ export default function CategoriesPage() {
                     disabled={question.answered}
                     className={`${isSixCategoryBoard ? "min-h-[78px] px-3 py-3 text-base lg:text-lg" : "min-h-[84px] p-3 sm:p-3.5 text-base sm:text-lg"} ${questionIndex === 0 ? "border-t-2 border-[#efe7ff]" : ""} font-bold transition-all ${
                       question.answered
-                        ? "bg-[linear-gradient(180deg,rgba(236,253,245,0.4)_0%,rgba(236,254,255,0.28)_100%)] text-[#8aa5a1] cursor-not-allowed border-b border-[#cfecea]"
-                        : "bg-[linear-gradient(180deg,rgba(240,253,250,0.82)_0%,rgba(236,254,255,0.62)_100%)] text-[#134e4a] hover:bg-[linear-gradient(180deg,rgba(204,251,241,0.9)_0%,rgba(207,250,254,0.68)_100%)] cursor-pointer border-b border-[#cfecea]"
+                        ? "bg-[linear-gradient(180deg,rgba(255,255,255,0.4)_0%,rgba(245,243,255,0.22)_100%)] text-[#a1a1aa] cursor-not-allowed border-b border-[#ece7ff]"
+                        : "bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(245,243,255,0.62)_100%)] text-[#4c1d95] hover:bg-[linear-gradient(180deg,rgba(250,245,255,0.95)_0%,rgba(237,233,254,0.7)_100%)] cursor-pointer border-b border-[#ece7ff]"
                     }`}
                   >
                     {question.answered ? "✓" : question.points}
@@ -992,7 +991,7 @@ export default function CategoriesPage() {
         <>
           <div className="pointer-events-none fixed inset-0 z-40 bg-black/20" />
           <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pb-6 pt-40 sm:pt-44">
-            <div className="w-full max-w-2xl rounded-2xl border border-[#8cd7cd]/55 bg-[linear-gradient(135deg,rgba(236,253,245,0.92)_0%,rgba(236,254,255,0.74)_100%)] p-5 shadow-[0_24px_80px_rgba(13,148,136,0.16)] backdrop-blur-xl sm:p-6">
+            <div className="w-full max-w-2xl rounded-2xl border border-[#ddd6fe]/55 bg-[linear-gradient(135deg,rgba(255,255,255,0.94)_0%,rgba(245,243,255,0.76)_100%)] p-5 shadow-[0_24px_80px_rgba(124,58,237,0.14)] backdrop-blur-xl sm:p-6">
               <div className="space-y-2 text-center text-[#1a2332]">
                 <div className="text-xl sm:text-3xl font-semibold">السؤال الحالي</div>
                 <div className="text-lg sm:text-2xl text-[#7c3aed]">{selectedQuestion?.points} نقطة</div>
@@ -1003,14 +1002,14 @@ export default function CategoriesPage() {
               </div>
 
               <div className="space-y-4 py-3 sm:space-y-5 sm:py-4">
-                <div className="rounded-lg border-2 border-[#8cd7cd]/55 bg-[linear-gradient(180deg,rgba(240,253,250,0.9)_0%,rgba(236,254,255,0.65)_100%)] p-4 sm:p-5">
+                <div className="rounded-lg border-2 border-[#ddd6fe]/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(245,243,255,0.68)_100%)] p-4 sm:p-5">
                   <p className="text-center text-lg font-semibold text-[#1a2332] sm:text-2xl">
                     {selectedQuestion?.question}
                   </p>
                 </div>
 
                 {showAnswer ? (
-                  <div className="rounded-lg border-2 border-[#8cd7cd]/55 bg-[linear-gradient(180deg,rgba(204,251,241,0.78)_0%,rgba(236,254,255,0.68)_100%)] p-4 sm:p-5">
+                  <div className="rounded-lg border-2 border-[#ddd6fe]/55 bg-[linear-gradient(180deg,rgba(250,245,255,0.86)_0%,rgba(245,243,255,0.72)_100%)] p-4 sm:p-5">
                     <p className="text-center text-base font-bold text-[#1a2332] sm:text-xl">
                       الإجابة: {selectedQuestion?.answer}
                     </p>

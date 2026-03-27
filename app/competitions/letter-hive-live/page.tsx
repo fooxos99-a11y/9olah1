@@ -2,10 +2,12 @@
 
 import type { FormEvent } from "react"
 import { useEffect, useState } from "react"
-import { Copy, ExternalLink, Sparkles, Users2 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Sparkles, Users2 } from "lucide-react"
 import { Footer } from "@/components/footer"
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
+import { toast } from "@/hooks/use-toast"
 
 type AuthUser = {
   id: string
@@ -13,47 +15,12 @@ type AuthUser = {
   role: string
 }
 
-type CreatedMatch = {
-  matchId: string
-  status: string
-  createdAt: string
-  links: {
-    presenter: string
-    teamA: string
-    teamB: string
-  }
-}
-
-function ShareLinkCard({ title, href, onCopy }: { title: string; href: string; onCopy: () => void }) {
-  return (
-    <div className="rounded-[1.6rem] border border-[#d8c9fb]/50 bg-[linear-gradient(135deg,rgba(255,255,255,0.62)_0%,rgba(246,242,255,0.28)_100%)] p-4 shadow-[0_18px_45px_rgba(124,58,237,0.08)] backdrop-blur-md">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm font-black text-[#6d28d9]">{title}</p>
-          <p className="mt-1 truncate text-sm text-[#5b5570]" dir="ltr">{href}</p>
-        </div>
-        <div className="flex gap-2 self-start md:self-auto">
-          <Button type="button" onClick={onCopy} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
-            <Copy className="h-4 w-4" />نسخ
-          </Button>
-          <Button type="button" asChild className="rounded-2xl bg-[#7c3aed] text-white hover:bg-[#6d28d9]">
-            <a href={href} target="_blank" rel="noreferrer">
-              <ExternalLink className="h-4 w-4" />فتح
-            </a>
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default function LetterHiveLiveEntryPage() {
+  const router = useRouter()
   const [authLoading, setAuthLoading] = useState(true)
   const [user, setUser] = useState<AuthUser | null>(null)
   const [creating, setCreating] = useState(false)
-  const [createdMatch, setCreatedMatch] = useState<CreatedMatch | null>(null)
   const [error, setError] = useState("")
-  const [copyMessage, setCopyMessage] = useState("")
   const [registrationForm, setRegistrationForm] = useState({
     teamName: "",
     playerOneName: "",
@@ -99,10 +66,23 @@ export default function LetterHiveLiveEntryPage() {
     try {
       setCreating(true)
       setError("")
-      setCopyMessage("")
+
+      if (!user) {
+        toast({
+          title: "سجل دخولك أولًا",
+          description: "سوف يتم تحويلك إلى صفحة تسجيل الدخول.",
+        })
+        router.push("/login")
+        return
+      }
 
       if (!isAdmin) {
-        throw new Error("إنشاء اللعبة متاح فقط لحساب الأدمن")
+        toast({
+          title: "هذا الزر ليس للاعبين",
+          description: "تم نقلك إلى قسم تسجيل الفريق بالأسفل.",
+        })
+        document.getElementById("team-registration")?.scrollIntoView({ behavior: "smooth", block: "start" })
+        return
       }
 
       const response = await fetch("/api/letter-hive-live/matches", {
@@ -115,9 +95,19 @@ export default function LetterHiveLiveEntryPage() {
         throw new Error(data?.error || "تعذر إنشاء اللعبة")
       }
 
-      setCreatedMatch(data)
+      toast({
+        title: "تم إنشاء البطولة",
+        description: "سيتم نقلك الآن إلى صفحة إدارة البطولة.",
+      })
+      router.push(data.links.presenter)
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "تعذر إنشاء اللعبة")
+      const message = requestError instanceof Error ? requestError.message : "تعذر إنشاء اللعبة"
+      setError(message)
+      toast({
+        variant: "destructive",
+        title: "تعذر تنفيذ الطلب",
+        description: message,
+      })
     } finally {
       setCreating(false)
     }
@@ -187,21 +177,20 @@ export default function LetterHiveLiveEntryPage() {
                   <Button
                     type="button"
                     onClick={handleCreateMatch}
-                    disabled={creating || authLoading || !isAdmin}
+                    disabled={creating || authLoading}
                     className="mx-auto h-16 w-full max-w-md rounded-[1.6rem] bg-[linear-gradient(135deg,#7c3aed_0%,#5b21b6_58%,#312e81_120%)] px-8 text-lg font-black text-white shadow-[0_22px_46px_rgba(109,40,217,0.28)] transition hover:scale-[1.01] hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-55"
                   >
                     <Sparkles className="h-5 w-5" />
-                    {creating ? "جارٍ الدخول..." : "دخول البطولة"}
+                    {creating ? "جارٍ إنشاء البطولة..." : "إنشاء البطولة"}
                   </Button>
 
                   {error ? <p className="text-sm font-bold text-red-600">{error}</p> : null}
-                  {copyMessage ? <p className="text-sm font-bold text-[#6d28d9]">{copyMessage}</p> : null}
                 </div>
               </div>
             </div>
           </section>
 
-          <section className="rounded-[2.2rem] border border-[#e8ddff] bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(250,245,255,0.82)_100%)] p-6 shadow-[0_24px_80px_rgba(124,58,237,0.08)] backdrop-blur-xl md:p-8">
+          <section id="team-registration" className="rounded-[2.2rem] border border-[#e8ddff] bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(250,245,255,0.82)_100%)] p-6 shadow-[0_24px_80px_rgba(124,58,237,0.08)] backdrop-blur-xl md:p-8">
             <div className="mx-auto max-w-4xl">
               <div className="rounded-[2rem] border border-[#e7dcff] bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(248,242,255,0.9)_100%)] p-6 text-center shadow-[0_24px_70px_rgba(124,58,237,0.1)] md:p-8">
                 <div className="inline-flex items-center gap-2 rounded-full border border-[#d8c9fb]/55 bg-white/80 px-4 py-2 text-sm font-black text-[#6d28d9]">
@@ -266,20 +255,6 @@ export default function LetterHiveLiveEntryPage() {
             </div>
           </section>
 
-          {createdMatch ? (
-            <section className="space-y-4">
-              <div className="rounded-[1.7rem] border border-[#d8c9fb]/45 bg-[linear-gradient(135deg,rgba(255,255,255,0.58)_0%,rgba(246,242,255,0.26)_100%)] p-5 shadow-[0_18px_55px_rgba(124,58,237,0.08)] backdrop-blur-xl md:p-6">
-                <h2 className="text-xl font-black text-[#1f1147] md:text-2xl">تم إنشاء اللعبة بنجاح</h2>
-                <p className="mt-2 text-sm leading-7 text-[#5b5570]">
-                  أرسل رابط كل فريق إلى صاحبه، وادخل أنت من رابط المقدم. لن يستطيع أي فريق استخدام زر السبق قبل أن تفتح المباراة من عندك.
-                </p>
-              </div>
-
-              <ShareLinkCard title="رابط المقدم" href={createdMatch.links.presenter} onCopy={() => handleCopy(createdMatch.links.presenter, "رابط المقدم")} />
-              <ShareLinkCard title="رابط الفريق الأول" href={createdMatch.links.teamA} onCopy={() => handleCopy(createdMatch.links.teamA, "رابط الفريق الأول")} />
-              <ShareLinkCard title="رابط الفريق الثاني" href={createdMatch.links.teamB} onCopy={() => handleCopy(createdMatch.links.teamB, "رابط الفريق الثاني")} />
-            </section>
-          ) : null}
         </div>
       </main>
       <Footer />
