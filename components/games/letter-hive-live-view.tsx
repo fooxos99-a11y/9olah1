@@ -13,6 +13,7 @@ type LetterHiveLiveViewProps = {
   teamBName: string
   teamAScore: number
   teamBScore: number
+  roundTarget?: number
   boardLetters: string[]
   claimedCells: ClaimedCell[]
   currentPrompt: string | null
@@ -30,7 +31,131 @@ type LetterHiveLiveViewProps = {
   sidePanel?: ReactNode
 }
 
-function TeamScoreCard({ name, score, color, side }: { name: string; score: number; color: string; side: "left" | "right" }) {
+const QUESTION_REVEAL_MIN_MS = 1400
+const QUESTION_REVEAL_MAX_MS = 5200
+const QUESTION_REVEAL_MS_PER_CHAR = 85
+export const QUESTION_SYNC_LEAD_MS = 900
+
+type LetterHiveLiveBuzzTimerState = {
+  phase: "owner" | "opponent" | null
+  remainingMs: number
+  activeSide: ClaimedCell
+}
+
+const TEAM_TIMER_STYLES = {
+  team_a: {
+    solid: "#df103a",
+    subtle: "rgba(223,16,58,0.1)",
+    border: "rgba(223,16,58,0.18)",
+    text: "#df103a",
+  },
+  team_b: {
+    solid: "#10dfb5",
+    subtle: "rgba(16,223,181,0.14)",
+    border: "rgba(16,223,181,0.2)",
+    text: "#08755f",
+  },
+} as const
+
+function splitIntoGraphemes(value: string) {
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    const segmenter = new Intl.Segmenter("ar", { granularity: "grapheme" })
+
+    return Array.from(segmenter.segment(value), (segment) => segment.segment)
+  }
+
+  return Array.from(value)
+}
+
+export function resolveQuestionStartTimeMs(updatedAt: string | null | undefined, serverTimeOffsetMs = 0) {
+  if (!updatedAt) {
+    return null
+  }
+
+  const serverUpdatedAtMs = Date.parse(updatedAt)
+  if (!Number.isFinite(serverUpdatedAtMs)) {
+    return null
+  }
+
+  return serverUpdatedAtMs + QUESTION_SYNC_LEAD_MS - serverTimeOffsetMs
+}
+
+export function useSynchronizedQuestionStart(isActive: boolean, updatedAt: string | null | undefined, serverTimeOffsetMs = 0) {
+  const [hasStarted, setHasStarted] = useState(!isActive)
+  const startAtMs = resolveQuestionStartTimeMs(updatedAt, serverTimeOffsetMs)
+
+  useEffect(() => {
+    if (!isActive) {
+      setHasStarted(true)
+      return
+    }
+
+    if (startAtMs === null) {
+      setHasStarted(false)
+      return
+    }
+
+    const remainingMs = Math.max(0, startAtMs - Date.now())
+    if (remainingMs === 0) {
+      setHasStarted(true)
+      return
+    }
+
+    setHasStarted(false)
+    const timeoutId = window.setTimeout(() => {
+      setHasStarted(true)
+    }, remainingMs)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [isActive, startAtMs])
+
+  return {
+    hasStarted,
+    startAtMs,
+  }
+}
+
+export function AnimatedQuestionText({ text, paused = false, ready = true }: { text: string; paused?: boolean; ready?: boolean }) {
+  const graphemes = splitIntoGraphemes(text)
+  const [visibleCount, setVisibleCount] = useState(0)
+  const totalDuration = Math.min(
+    QUESTION_REVEAL_MAX_MS,
+    Math.max(QUESTION_REVEAL_MIN_MS, graphemes.length * QUESTION_REVEAL_MS_PER_CHAR),
+  )
+  const perCharDelay = graphemes.length > 0 ? totalDuration / graphemes.length : QUESTION_REVEAL_MIN_MS
+
+  useEffect(() => {
+    setVisibleCount(0)
+  }, [text])
+
+  useEffect(() => {
+    if (!ready || paused || !graphemes.length || visibleCount >= graphemes.length) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setVisibleCount((previousCount) => Math.min(previousCount + 1, graphemes.length))
+    }, perCharDelay)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [graphemes.length, paused, perCharDelay, ready, visibleCount])
+
+  const visibleText = graphemes.slice(0, visibleCount).join("")
+  const isAnimating = visibleCount < graphemes.length
+
+  return (
+    <span style={{ display: "inline" }}>
+      {visibleText}
+      {isAnimating ? <span style={{ opacity: 0.35 }}> </span> : null}
+    </span>
+  )
+}
+
+function TeamScoreCard({ name, score, color, side, roundTarget }: { name: string; score: number; color: string; side: "left" | "right"; roundTarget?: number }) {
   return (
     <div
       style={{
@@ -77,7 +202,8 @@ function TeamScoreCard({ name, score, color, side }: { name: string; score: numb
       >
         {score}
       </div>
-      <div style={{ fontSize: "0.9rem", color: "#888", fontWeight: "bold" }}>نقطة</div>
+      <div style={{ fontSize: "0.9rem", color: "#888", fontWeight: "bold" }}>جولة</div>
+      <div style={{ fontSize: "0.82rem", color: "#6b7280", fontWeight: 800 }}>الهدف {roundTarget || 3}</div>
     </div>
   )
 }
@@ -87,6 +213,7 @@ export function LetterHiveLiveView({
   teamBName,
   teamAScore,
   teamBScore,
+  roundTarget = 3,
   boardLetters,
   claimedCells,
   currentPrompt,
@@ -346,10 +473,10 @@ export function LetterHiveLiveView({
               }}
             >
               <div style={{ position: "absolute", left: "0", top: "50%", transform: "translate(-98%, -50%)", zIndex: 4 }}>
-                <TeamScoreCard name={teamBName} score={teamBScore} color="#10dfb5" side="left" />
+                <TeamScoreCard name={teamBName} score={teamBScore} color="#10dfb5" side="left" roundTarget={roundTarget} />
               </div>
               <div style={{ position: "absolute", right: "0", top: "50%", transform: "translate(98%, -50%)", zIndex: 4 }}>
-                <TeamScoreCard name={teamAName} score={teamAScore} color="#df103a" side="right" />
+                <TeamScoreCard name={teamAName} score={teamAScore} color="#df103a" side="right" roundTarget={roundTarget} />
               </div>
               <svg viewBox="-70 -70 690 605" style={{ width: "100%", height: "auto", overflow: "visible" }}>
                 <foreignObject x="-80" y="-80" width="710" height="624">
@@ -380,7 +507,9 @@ export function LetterHiveLiveView({
         (currentPrompt ? (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(5px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 110 }}>
             <div style={{ background: "white", padding: "40px 30px", borderRadius: "25px", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", minWidth: 320 }}>
-              <h3 style={{ marginBottom: 24, fontSize: "1.3rem", color: "#2c3e50" }}>{currentPrompt}</h3>
+              <h3 style={{ marginBottom: 24, fontSize: "1.3rem", color: "#2c3e50", lineHeight: 1.9 }}>
+                <AnimatedQuestionText text={currentPrompt} />
+              </h3>
               {showAnswer && currentAnswer ? (
                 <div style={{ fontSize: "1.5rem", color: "#008a1e", marginBottom: 18, fontWeight: "bold" }}>{currentAnswer}</div>
               ) : null}
@@ -389,7 +518,7 @@ export function LetterHiveLiveView({
         ) : null)}
 
       {onBuzz ? (
-        <div className="fixed bottom-6 right-6 z-40">
+        <div className="fixed bottom-6 right-6 z-[140]">
           <Button
             type="button"
             onClick={onBuzz}
@@ -403,6 +532,166 @@ export function LetterHiveLiveView({
           </Button>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function resolveSynchronizedTimestampMs(serverTimestamp: string | null | undefined, serverTimeOffsetMs = 0) {
+  if (!serverTimestamp) {
+    return null
+  }
+
+  const parsedTimestamp = Date.parse(serverTimestamp)
+  if (!Number.isFinite(parsedTimestamp)) {
+    return null
+  }
+
+  return parsedTimestamp - serverTimeOffsetMs
+}
+
+export function useLetterHiveLiveBuzzTimer(
+  firstBuzzSide: ClaimedCell,
+  firstBuzzedAt: string | null | undefined,
+  ownerTimerMs: number,
+  opponentTimerMs: number,
+  serverTimeOffsetMs = 0,
+): LetterHiveLiveBuzzTimerState {
+  const [tick, setTick] = useState(0)
+  const firstBuzzAtMs = resolveSynchronizedTimestampMs(firstBuzzedAt, serverTimeOffsetMs)
+
+  useEffect(() => {
+    if (!firstBuzzSide || firstBuzzAtMs === null) {
+      return
+    }
+
+    const finalPhaseEndsAtMs = firstBuzzAtMs + ownerTimerMs + opponentTimerMs
+    if (Date.now() >= finalPhaseEndsAtMs) {
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      setTick((previousValue) => previousValue + 1)
+    }, 150)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [firstBuzzAtMs, firstBuzzSide, opponentTimerMs, ownerTimerMs])
+
+  void tick
+
+  if (!firstBuzzSide || firstBuzzAtMs === null) {
+    return {
+      phase: null,
+      remainingMs: 0,
+      activeSide: null,
+    }
+  }
+
+  const ownerPhaseEndsAtMs = firstBuzzAtMs + ownerTimerMs
+  const opponentPhaseEndsAtMs = ownerPhaseEndsAtMs + opponentTimerMs
+  const nowMs = Date.now()
+
+  if (nowMs < ownerPhaseEndsAtMs) {
+    return {
+      phase: "owner",
+      remainingMs: ownerPhaseEndsAtMs - nowMs,
+      activeSide: firstBuzzSide,
+    }
+  }
+
+  if (nowMs < opponentPhaseEndsAtMs) {
+    return {
+      phase: "opponent",
+      remainingMs: opponentPhaseEndsAtMs - nowMs,
+      activeSide: firstBuzzSide === "team_a" ? "team_b" : "team_a",
+    }
+  }
+
+  return {
+    phase: null,
+    remainingMs: 0,
+    activeSide: null,
+  }
+}
+
+export function LetterHiveLiveBuzzTimerCard({
+  firstBuzzSide,
+  firstBuzzedAt,
+  teamAName,
+  teamBName,
+  buzzOwnerTimerSeconds,
+  buzzOpponentTimerSeconds,
+  serverTimeOffsetMs = 0,
+}: {
+  firstBuzzSide: ClaimedCell
+  firstBuzzedAt: string | null | undefined
+  teamAName: string
+  teamBName: string
+  buzzOwnerTimerSeconds: number
+  buzzOpponentTimerSeconds: number
+  serverTimeOffsetMs?: number
+}) {
+  const ownerTimerMs = buzzOwnerTimerSeconds * 1000
+  const opponentTimerMs = buzzOpponentTimerSeconds * 1000
+  const timerState = useLetterHiveLiveBuzzTimer(firstBuzzSide, firstBuzzedAt, ownerTimerMs, opponentTimerMs, serverTimeOffsetMs)
+
+  if (!timerState.phase || !timerState.activeSide) {
+    return null
+  }
+
+  const timerStyle = TEAM_TIMER_STYLES[timerState.activeSide]
+  const activeTeamName = timerState.activeSide === "team_a" ? teamAName : teamBName
+  const phaseLabel = timerState.phase === "owner" ? "وقت الفريق الضاغط" : "وقت الفريق الآخر"
+  const wholeSeconds = Math.max(0, Math.ceil(timerState.remainingMs / 1000))
+  const totalPhaseMs = timerState.phase === "owner" ? ownerTimerMs : opponentTimerMs
+  const progress = Math.max(0, Math.min(100, (timerState.remainingMs / totalPhaseMs) * 100))
+
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.96)",
+        padding: "14px 18px",
+        borderRadius: "22px",
+        textAlign: "center",
+        boxShadow: "0 18px 36px rgba(0,0,0,0.18)",
+        minWidth: 240,
+        maxWidth: 340,
+        width: "100%",
+      }}
+    >
+      <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "999px", background: timerStyle.subtle, border: `1px solid ${timerStyle.border}`, padding: "6px 12px", color: timerStyle.text, fontSize: "0.82rem", fontWeight: 900 }}>
+        {phaseLabel}
+      </div>
+      <div
+        style={{
+          marginTop: "10px",
+          borderRadius: "999px",
+          background: timerStyle.subtle,
+          border: `1px solid ${timerStyle.border}`,
+          padding: "8px 18px",
+          color: timerStyle.text,
+          fontSize: "0.98rem",
+          fontWeight: 900,
+          lineHeight: 1.2,
+        }}
+      >
+        {activeTeamName}
+      </div>
+      <div style={{ marginTop: "12px", fontSize: "2rem", lineHeight: 1, fontWeight: 900, color: timerStyle.solid, fontVariantNumeric: "tabular-nums" }}>
+        {wholeSeconds}
+      </div>
+      <div style={{ marginTop: "10px", height: "8px", borderRadius: "999px", background: "rgba(148,163,184,0.18)", overflow: "hidden" }}>
+        <div
+          style={{
+            width: `${progress}%`,
+            height: "100%",
+            background: timerStyle.solid,
+            borderRadius: "999px",
+            transition: "width 120ms linear",
+          }}
+        />
+      </div>
     </div>
   )
 }

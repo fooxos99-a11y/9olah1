@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { notFoundResponse } from "@/lib/auth/guards"
-import { type LetterHiveLiveMatchRow, resolveMatchRole, sanitizeMatchForClient, sanitizeTeamName } from "@/lib/letter-hive-live"
+import { normalizeMatchMetadata, type LetterHiveLiveMatchRow, resolveMatchRole, sanitizeMatchForClient, sanitizeTeamName } from "@/lib/letter-hive-live"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 const ALLOWED_PATCH_KEYS = [
@@ -65,6 +65,13 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    if (Object.prototype.hasOwnProperty.call(updatePayload, "metadata")) {
+      updatePayload.metadata = {
+        ...normalizeMatchMetadata(match.metadata),
+        ...normalizeMatchMetadata(updatePayload.metadata),
+      }
+    }
+
     if (Object.keys(updatePayload).length === 1) {
       return NextResponse.json({ error: "لا يوجد أي تحديث مطلوب" }, { status: 400 })
     }
@@ -87,6 +94,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({
       match: sanitizeMatchForClient(data as LetterHiveLiveMatchRow, "presenter", new URL(request.url).origin),
+      serverNow: new Date().toISOString(),
     })
   } catch (error) {
     console.error("Error updating live letter hive match state:", error)

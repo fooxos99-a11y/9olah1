@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { notFoundResponse } from "@/lib/auth/guards"
-import { type LetterHiveLiveMatchRow, resolveMatchRole, sanitizeMatchForClient, sanitizeTeamName } from "@/lib/letter-hive-live"
+import {
+  type LetterHiveLiveMatchRow,
+  normalizeLetterHiveLivePlayerSlots,
+  resolveLetterHiveLivePlayerSlot,
+  resolveMatchRole,
+  sanitizeMatchForClient,
+  sanitizeTeamName,
+} from "@/lib/letter-hive-live"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 async function findMatchByToken(token: string) {
@@ -8,7 +15,7 @@ async function findMatchByToken(token: string) {
   const { data, error } = await supabase
     .from("letter_hive_live_matches")
     .select("*")
-    .or(`team_a_token.eq.${token},team_b_token.eq.${token}`)
+    .or(`presenter_token.eq.${token},team_a_token.eq.${token},team_b_token.eq.${token}`)
     .maybeSingle()
 
   if (error) {
@@ -22,6 +29,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const token = sanitizeTeamName(body?.token)
+    const playerSlot = resolveLetterHiveLivePlayerSlot(body?.playerSlot)
 
     if (!token) {
       return NextResponse.json({ error: "رابط الفريق مطلوب" }, { status: 400 })
@@ -33,7 +41,11 @@ export async function POST(request: NextRequest) {
     }
 
     const role = resolveMatchRole(match, token)
-    if (role !== "team_a" && role !== "team_b") {
+    const playerRole = role === "presenter" && playerSlot
+      ? normalizeLetterHiveLivePlayerSlots(match.metadata).find((entry) => entry.slot === playerSlot)?.color || null
+      : role
+
+    if (playerRole !== "team_a" && playerRole !== "team_b") {
       return NextResponse.json({ error: "هذا الرابط ليس رابط فريق" }, { status: 403 })
     }
 
@@ -53,7 +65,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from("letter_hive_live_matches")
       .update({
-        first_buzz_side: role,
+        first_buzz_side: playerRole,
         first_buzzed_at: new Date().toISOString(),
         buzz_enabled: false,
         updated_at: new Date().toISOString(),
@@ -72,7 +84,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      match: sanitizeMatchForClient(data as LetterHiveLiveMatchRow, role, new URL(request.url).origin),
+      match: sanitizeMatchForClient(data as LetterHiveLiveMatchRow, playerRole, new URL(request.url).origin, playerSlot),
+      serverNow: new Date().toISOString(),
     })
   } catch (error) {
     console.error("Error registering live letter hive buzz:", error)

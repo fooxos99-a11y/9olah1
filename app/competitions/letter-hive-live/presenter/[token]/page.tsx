@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
-import { Copy, ExternalLink, Lock, Trophy, Unlock } from "lucide-react"
+import { Copy, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SiteLoader } from "@/components/ui/site-loader"
-import { LETTER_HIVE_LIVE_BASE_LETTERS } from "@/lib/letter-hive-live"
+import { DEFAULT_LETTER_HIVE_LIVE_BUZZ_OPPONENT_TIMER_SECONDS, DEFAULT_LETTER_HIVE_LIVE_BUZZ_OWNER_TIMER_SECONDS, DEFAULT_LETTER_HIVE_LIVE_ROUND_TARGET, LETTER_HIVE_LIVE_BASE_LETTERS, MAX_LETTER_HIVE_LIVE_BUZZ_TIMER_SECONDS, MAX_LETTER_HIVE_LIVE_ROUND_TARGET, MIN_LETTER_HIVE_LIVE_BUZZ_TIMER_SECONDS, MIN_LETTER_HIVE_LIVE_ROUND_TARGET, hasCompletedLetterHiveLiveRound, type LetterHiveLivePlayerSlot } from "@/lib/letter-hive-live"
 import { supabase } from "@/lib/supabase-client"
-import { LetterHiveLiveView } from "@/components/games/letter-hive-live-view"
+import { AnimatedQuestionText, LetterHiveLiveBuzzTimerCard, LetterHiveLiveView, useSynchronizedQuestionStart } from "@/components/games/letter-hive-live-view"
 import { toast } from "@/hooks/use-toast"
 
 type PresenterMatch = {
@@ -23,17 +23,27 @@ type PresenterMatch = {
   teamBName: string | null
   teamAScore: number
   teamBScore: number
+  roundTarget: number
+  buzzOwnerTimerSeconds: number
+  buzzOpponentTimerSeconds: number
   currentPrompt: string | null
   currentAnswer: string | null
   currentLetter: string | null
   currentCellIndex: number | null
   showAnswer: boolean
+  updatedAt: string | null
+  playerSlot: number | null
+  playerSlots: LetterHiveLivePlayerSlot[]
   boardLetters: string[]
   claimedCells: Array<"team_a" | "team_b" | null>
   links: {
     presenter: string
     teamA: string
     teamB: string
+    players: Array<{
+      slot: number
+      href: string
+    }>
   }
 }
 
@@ -43,22 +53,27 @@ type PreloadedQuestion = {
   answer: string
 }
 
+type MatchBroadcastPatch = Partial<Pick<PresenterMatch, "status" | "isOpen" | "buzzEnabled" | "firstBuzzSide" | "firstBuzzedAt" | "teamAName" | "teamBName" | "teamAScore" | "teamBScore" | "roundTarget" | "buzzOwnerTimerSeconds" | "buzzOpponentTimerSeconds" | "currentPrompt" | "currentAnswer" | "currentLetter" | "currentCellIndex" | "showAnswer" | "updatedAt" | "playerSlots" | "boardLetters" | "claimedCells">>
+
 const LIVE_SYNC_INTERVAL_MS = 2000
 
-function TeamLinkCard({
+function PlayerLinkCard({
   title,
   href,
-  teamName,
+  playerName,
+  playerColor,
   accentClass,
   onCopy,
 }: {
   title: string
   href: string
-  teamName: string | null
+  playerName: string | null
+  playerColor: "team_a" | "team_b" | null
   accentClass: string
   onCopy: () => void
 }) {
-  const joined = Boolean(teamName)
+  const joined = Boolean(playerName && playerColor)
+  const colorLabel = playerColor === "team_a" ? "الأحمر" : playerColor === "team_b" ? "التركوازي" : null
 
   return (
     <div className="rounded-[1.8rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(248,244,255,0.9)_100%)] p-4 text-right shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
@@ -66,7 +81,7 @@ function TeamLinkCard({
         <div>
           <p className="text-base font-black text-[#1f1147]">{title}</p>
           <p className={`mt-2 inline-flex rounded-full px-3 py-1.5 text-sm font-black ${accentClass}`}>
-            {joined ? `دخل الفريق: ${teamName}` : "بانتظار دخول الفريق"}
+            {joined ? `${playerName} • ${colorLabel}` : "بانتظار دخول اللاعب"}
           </p>
         </div>
       </div>
@@ -88,6 +103,7 @@ export default function LetterHiveLivePresenterPage() {
   const params = useParams<{ token: string }>()
   const token = Array.isArray(params?.token) ? params.token[0] : params?.token || ""
   const liveChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const selectionLockRef = useRef(false)
 
   const [match, setMatch] = useState<PresenterMatch | null>(null)
   const [loading, setLoading] = useState(true)
@@ -95,6 +111,21 @@ export default function LetterHiveLivePresenterPage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [selectedCellIndex, setSelectedCellIndex] = useState<number | null>(null)
   const [questionsByLetter, setQuestionsByLetter] = useState<Record<string, PreloadedQuestion[]>>({})
+  const [serverTimeOffsetMs, setServerTimeOffsetMs] = useState(0)
+  const [roundTargetDraft, setRoundTargetDraft] = useState(DEFAULT_LETTER_HIVE_LIVE_ROUND_TARGET)
+  const [buzzOwnerTimerDraft, setBuzzOwnerTimerDraft] = useState(DEFAULT_LETTER_HIVE_LIVE_BUZZ_OWNER_TIMER_SECONDS)
+  const [buzzOpponentTimerDraft, setBuzzOpponentTimerDraft] = useState(DEFAULT_LETTER_HIVE_LIVE_BUZZ_OPPONENT_TIMER_SECONDS)
+
+  const syncServerTimeOffset = (serverNow?: string | null) => {
+    if (!serverNow) {
+      return
+    }
+
+    const nextOffsetMs = Date.parse(serverNow) - Date.now()
+    if (Number.isFinite(nextOffsetMs)) {
+      setServerTimeOffsetMs(nextOffsetMs)
+    }
+  }
 
   const handleCopy = async (value: string, label: string) => {
     try {
@@ -112,7 +143,31 @@ export default function LetterHiveLivePresenterPage() {
     }
   }
 
-  const broadcastMatchUpdate = async () => {
+  const buildBroadcastMatchPatch = (nextMatch: PresenterMatch): MatchBroadcastPatch => ({
+    status: nextMatch.status,
+    isOpen: nextMatch.isOpen,
+    buzzEnabled: nextMatch.buzzEnabled,
+    firstBuzzSide: nextMatch.firstBuzzSide,
+    firstBuzzedAt: nextMatch.firstBuzzedAt,
+    teamAName: nextMatch.teamAName,
+    teamBName: nextMatch.teamBName,
+    teamAScore: nextMatch.teamAScore,
+    teamBScore: nextMatch.teamBScore,
+    roundTarget: nextMatch.roundTarget,
+    buzzOwnerTimerSeconds: nextMatch.buzzOwnerTimerSeconds,
+    buzzOpponentTimerSeconds: nextMatch.buzzOpponentTimerSeconds,
+    currentPrompt: nextMatch.currentPrompt,
+    currentAnswer: nextMatch.showAnswer ? nextMatch.currentAnswer : null,
+    currentLetter: nextMatch.currentLetter,
+    currentCellIndex: nextMatch.currentCellIndex,
+    showAnswer: nextMatch.showAnswer,
+    updatedAt: nextMatch.updatedAt,
+    playerSlots: nextMatch.playerSlots,
+    boardLetters: nextMatch.boardLetters,
+    claimedCells: nextMatch.claimedCells,
+  })
+
+  const broadcastMatchUpdate = async (matchPatch?: MatchBroadcastPatch, serverNow?: string | null) => {
     if (!liveChannelRef.current) {
       return
     }
@@ -120,7 +175,7 @@ export default function LetterHiveLivePresenterPage() {
     await liveChannelRef.current.send({
       type: "broadcast",
       event: "match-updated",
-      payload: { token, sentAt: Date.now() },
+      payload: { token, sentAt: Date.now(), serverNow: serverNow ?? null, match: matchPatch ?? null },
     })
   }
 
@@ -143,6 +198,7 @@ export default function LetterHiveLivePresenterPage() {
         throw new Error(data?.error || "تعذر جلب المباراة")
       }
 
+      syncServerTimeOffset(data?.serverNow)
       setMatch(data.match)
       setError("")
     } catch (requestError) {
@@ -177,7 +233,16 @@ export default function LetterHiveLivePresenterPage() {
 
     const channel = supabase
       .channel(`letter-hive-live-room:${match.id}`)
-      .on("broadcast", { event: "match-updated" }, () => {
+      .on("broadcast", { event: "match-updated" }, (event) => {
+        syncServerTimeOffset(event.payload?.serverNow as string | null | undefined)
+        const matchPatch = event.payload?.match as MatchBroadcastPatch | null | undefined
+
+        if (matchPatch) {
+          setMatch((previousMatch) => (previousMatch ? { ...previousMatch, ...matchPatch } : previousMatch))
+          setError("")
+          return
+        }
+
         void fetchMatch(false)
       })
       .on(
@@ -204,6 +269,15 @@ export default function LetterHiveLivePresenterPage() {
     }
   }, [match?.id])
 
+  const boardLetters = useMemo(() => {
+    if (!match?.boardLetters?.length) {
+      return LETTER_HIVE_LIVE_BASE_LETTERS
+    }
+
+    return match.boardLetters
+  }, [match])
+  const boardLettersKey = useMemo(() => boardLetters.join(","), [boardLetters])
+
   useEffect(() => {
     if (!token) {
       return
@@ -213,7 +287,7 @@ export default function LetterHiveLivePresenterPage() {
 
     const preloadQuestions = async () => {
       try {
-        const response = await fetch(`/api/letter-hive-live/question?token=${encodeURIComponent(token)}`, {
+        const response = await fetch(`/api/letter-hive-live/question?token=${encodeURIComponent(token)}&letters=${encodeURIComponent(boardLettersKey)}&perLetterLimit=1`, {
           cache: "no-store",
         })
         const data = await response.json()
@@ -237,7 +311,22 @@ export default function LetterHiveLivePresenterPage() {
     return () => {
       cancelled = true
     }
-  }, [token])
+  }, [boardLettersKey, token])
+
+  useEffect(() => {
+    selectionLockRef.current = Boolean(match?.currentPrompt) || actionLoading
+  }, [actionLoading, match?.currentPrompt])
+
+  const { hasStarted: questionHasStarted } = useSynchronizedQuestionStart(Boolean(match?.currentPrompt), match?.updatedAt, serverTimeOffsetMs)
+
+  useEffect(() => {
+    setRoundTargetDraft(match?.roundTarget || DEFAULT_LETTER_HIVE_LIVE_ROUND_TARGET)
+  }, [match?.roundTarget])
+
+  useEffect(() => {
+    setBuzzOwnerTimerDraft(match?.buzzOwnerTimerSeconds || DEFAULT_LETTER_HIVE_LIVE_BUZZ_OWNER_TIMER_SECONDS)
+    setBuzzOpponentTimerDraft(match?.buzzOpponentTimerSeconds || DEFAULT_LETTER_HIVE_LIVE_BUZZ_OPPONENT_TIMER_SECONDS)
+  }, [match?.buzzOpponentTimerSeconds, match?.buzzOwnerTimerSeconds])
 
   const firstBuzzLabel = useMemo(() => {
     if (!match?.firstBuzzSide) {
@@ -249,14 +338,6 @@ export default function LetterHiveLivePresenterPage() {
       : match.teamBName || "الفريق الثاني"
   }, [match])
 
-  const boardLetters = useMemo(() => {
-    if (!match?.boardLetters?.length) {
-      return LETTER_HIVE_LIVE_BASE_LETTERS
-    }
-
-    return match.boardLetters
-  }, [match])
-
   const claimedCells = useMemo(() => {
     if (!match?.claimedCells?.length) {
       return Array(25).fill(null) as Array<"team_a" | "team_b" | null>
@@ -264,6 +345,16 @@ export default function LetterHiveLivePresenterPage() {
 
     return match.claimedCells
   }, [match])
+
+  const playerColorCounts = useMemo(() => {
+    const teamAPlayers = match?.playerSlots.filter((playerSlot) => playerSlot.color === "team_a" && playerSlot.name).length || 0
+    const teamBPlayers = match?.playerSlots.filter((playerSlot) => playerSlot.color === "team_b" && playerSlot.name).length || 0
+
+    return {
+      teamAPlayers,
+      teamBPlayers,
+    }
+  }, [match?.playerSlots])
 
   const selectedLetter = useMemo(() => {
     if (selectedCellIndex === null) {
@@ -297,9 +388,10 @@ export default function LetterHiveLivePresenterPage() {
         throw new Error(data?.error || "تعذر تحديث الحالة")
       }
 
+      syncServerTimeOffset(data?.serverNow)
       setMatch(data.match)
       setError("")
-      void broadcastMatchUpdate()
+      void broadcastMatchUpdate(buildBroadcastMatchPatch(data.match), data?.serverNow)
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "تعذر تحديث الحالة")
     } finally {
@@ -312,6 +404,12 @@ export default function LetterHiveLivePresenterPage() {
       setError("ابدأ اللعبة أولاً")
       return
     }
+
+    if (selectionLockRef.current || actionLoading || match.currentPrompt || match.currentCellIndex !== null) {
+      return
+    }
+
+    selectionLockRef.current = true
 
     setSelectedCellIndex(index)
     const letter = boardLetters[index] || ""
@@ -331,6 +429,7 @@ export default function LetterHiveLivePresenterPage() {
         showAnswer: false,
         buzzEnabled: Boolean(nextPreloadedQuestion),
         firstBuzzSide: null,
+        updatedAt: null,
       }
     })
 
@@ -356,9 +455,16 @@ export default function LetterHiveLivePresenterPage() {
         throw new Error(data?.error || "تعذر تحميل سؤال البطولة")
       }
 
+      syncServerTimeOffset(data?.serverNow)
       setMatch(data.match)
+      if (letter) {
+        setQuestionsByLetter((previousQuestions) => ({
+          ...previousQuestions,
+          [letter]: data.preloadedQuestion ? [data.preloadedQuestion] : [],
+        }))
+      }
       setError("")
-      void broadcastMatchUpdate()
+      void broadcastMatchUpdate(buildBroadcastMatchPatch(data.match), data?.serverNow)
     } catch (requestError) {
       if (nextPreloadedQuestion && letter) {
         setQuestionsByLetter((previousQuestions) => ({
@@ -371,6 +477,9 @@ export default function LetterHiveLivePresenterPage() {
       setError(requestError instanceof Error ? requestError.message : "تعذر تحميل سؤال البطولة")
     } finally {
       setActionLoading(false)
+      if (!match?.currentPrompt) {
+        selectionLockRef.current = false
+      }
     }
   }
 
@@ -389,13 +498,24 @@ export default function LetterHiveLivePresenterPage() {
       return
     }
 
+    if (!match.showAnswer) {
+      setError("أظهر الجواب أولاً ثم حدّد الفريق الذي أجاب")
+      return
+    }
+
     const nextClaimedCells = [...claimedCells]
     nextClaimedCells[match.currentCellIndex] = side
+    const didWinRound = hasCompletedLetterHiveLiveRound(nextClaimedCells, side)
+    const nextTeamAScore = side === "team_a" && didWinRound ? match.teamAScore + 1 : match.teamAScore
+    const nextTeamBScore = side === "team_b" && didWinRound ? match.teamBScore + 1 : match.teamBScore
+    const targetReached = (side === "team_a" ? nextTeamAScore : nextTeamBScore) >= match.roundTarget
 
     await updateState({
-      claimed_cells: nextClaimedCells,
-      team_a_score: side === "team_a" ? match.teamAScore + 1 : match.teamAScore,
-      team_b_score: side === "team_b" ? match.teamBScore + 1 : match.teamBScore,
+      claimed_cells: didWinRound ? Array(25).fill(null) : nextClaimedCells,
+      team_a_score: nextTeamAScore,
+      team_b_score: nextTeamBScore,
+      status: targetReached ? "finished" : match.status,
+      is_open: targetReached ? false : match.isOpen,
       current_prompt: null,
       current_answer: null,
       current_letter: null,
@@ -422,7 +542,7 @@ export default function LetterHiveLivePresenterPage() {
     setSelectedCellIndex(null)
   }
 
-  const canStartGame = Boolean(match?.teamAName && match?.teamBName)
+  const canStartGame = playerColorCounts.teamAPlayers === 2 && playerColorCounts.teamBPlayers === 2
 
   if (loading) {
     return <SiteLoader fullScreen />
@@ -444,6 +564,7 @@ export default function LetterHiveLivePresenterPage() {
       teamBName={match?.teamBName || "الفريق الثاني"}
       teamAScore={match?.teamAScore ?? 0}
       teamBScore={match?.teamBScore ?? 0}
+      roundTarget={match?.roundTarget ?? DEFAULT_LETTER_HIVE_LIVE_ROUND_TARGET}
       boardLetters={boardLetters}
       claimedCells={claimedCells}
       currentPrompt={match?.currentPrompt || null}
@@ -451,101 +572,209 @@ export default function LetterHiveLivePresenterPage() {
       showAnswer={Boolean(match?.showAnswer)}
       currentCellIndex={match?.currentCellIndex ?? null}
       error={error}
-      onCellSelect={handleSelectCell}
+      onCellSelect={!actionLoading && !match?.currentPrompt ? handleSelectCell : undefined}
       selectedCellIndex={selectedCellIndex}
       questionOverlay={
         match?.status === "waiting" ? (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.36)", backdropFilter: "blur(5px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 110, padding: "16px" }}>
-            <div style={{ background: "white", padding: "36px 30px", borderRadius: "25px", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", minWidth: 320, maxWidth: 900, width: "100%" }}>
+            <div style={{ background: "white", padding: "26px 22px", borderRadius: "25px", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", minWidth: 320, maxWidth: 980, width: "100%" }}>
               <h3 style={{ marginBottom: 12, fontSize: "1.6rem", color: "#2c3e50", fontWeight: 900 }}>جاهز لبدء البطولة</h3>
-              <p style={{ marginBottom: 24, fontSize: "1rem", color: "#6b7280", lineHeight: 1.9 }}>
-                {canStartGame ? "بعد الضغط على بدء اللعبة تستطيع اختيار أي خلية ليظهر سؤالها الخاص من قاعدة البطولة." : "يجب أن يدخل الفريقان أولاً قبل أن تستطيع بدء اللعبة."}
+              <p style={{ marginBottom: 20, fontSize: "1rem", color: "#6b7280", lineHeight: 1.9 }}>
+                {canStartGame ? "بعد الضغط على بدء اللعبة تستطيع اختيار أي خلية ليظهر سؤالها الخاص من قاعدة البطولة." : "يجب أن يكتمل 4 لاعبين، لاعبان للأحمر ولاعبان للتركوازي، قبل أن تستطيع بدء اللعبة."}
               </p>
-              <div className="mb-5 rounded-[1.6rem] border border-[#e7dcff] bg-[linear-gradient(180deg,rgba(248,244,255,0.9)_0%,rgba(255,255,255,0.96)_100%)] p-4 text-right shadow-[0_12px_30px_rgba(124,58,237,0.08)]">
-                <p className="text-sm font-black text-[#6d28d9]">رابط المقدم</p>
-                <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <p className="min-w-0 truncate rounded-2xl border border-[#e7dcff] bg-white/80 px-4 py-3 text-left text-xs text-[#5b5570]" dir="ltr">
-                    {match?.links.presenter}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" onClick={() => void handleCopy(match?.links.presenter || "", "رابط المقدم")} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
-                      <Copy className="h-4 w-4" />نسخ
-                    </Button>
-                    <Button type="button" asChild className="rounded-2xl bg-[#7c3aed] text-white hover:bg-[#6d28d9]">
-                      <a href={match?.links.presenter || "#"} target="_blank" rel="noreferrer">
-                        <ExternalLink className="h-4 w-4" />فتح
-                      </a>
-                    </Button>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                <div className="space-y-4">
+                  <div className="rounded-[1.6rem] border border-[#e7dcff] bg-[linear-gradient(180deg,rgba(248,244,255,0.9)_0%,rgba(255,255,255,0.96)_100%)] p-4 text-center shadow-[0_12px_30px_rgba(124,58,237,0.08)]">
+                    <p className="text-sm font-black text-[#6d28d9]">الفوز من كم جولة</p>
+                    <div className="mt-3 flex items-center justify-center gap-3">
+                      <Button type="button" onClick={() => setRoundTargetDraft((previousValue) => Math.max(MIN_LETTER_HIVE_LIVE_ROUND_TARGET, previousValue - 1))} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent px-4 text-[#6d28d9] hover:bg-[#f5f3ff]">
+                        -
+                      </Button>
+                      <div className="min-w-20 rounded-2xl border border-[#e7dcff] bg-white/85 px-5 py-3 text-xl font-black text-[#1f1147]">
+                        {roundTargetDraft}
+                      </div>
+                      <Button type="button" onClick={() => setRoundTargetDraft((previousValue) => Math.min(MAX_LETTER_HIVE_LIVE_ROUND_TARGET, previousValue + 1))} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent px-4 text-[#6d28d9] hover:bg-[#f5f3ff]">
+                        +
+                      </Button>
+                    </div>
                   </div>
+
+                  <div className="grid gap-3 rounded-[1.4rem] border border-[#e7dcff] bg-[linear-gradient(180deg,rgba(248,244,255,0.82)_0%,rgba(255,255,255,0.96)_100%)] p-3 text-center shadow-[0_12px_24px_rgba(124,58,237,0.07)] sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                    <div>
+                      <p className="text-sm font-black text-[#6d28d9]">ثواني الفريق الأول</p>
+                      <div className="mt-2 flex items-center justify-center gap-2">
+                        <Button type="button" onClick={() => setBuzzOwnerTimerDraft((previousValue) => Math.max(MIN_LETTER_HIVE_LIVE_BUZZ_TIMER_SECONDS, previousValue - 1))} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent px-4 text-[#6d28d9] hover:bg-[#f5f3ff]">
+                          -
+                        </Button>
+                        <div className="min-w-16 rounded-2xl border border-[#e7dcff] bg-white/90 px-4 py-2 text-lg font-black text-[#1f1147]">
+                          {buzzOwnerTimerDraft}
+                        </div>
+                        <Button type="button" onClick={() => setBuzzOwnerTimerDraft((previousValue) => Math.min(MAX_LETTER_HIVE_LIVE_BUZZ_TIMER_SECONDS, previousValue + 1))} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent px-4 text-[#6d28d9] hover:bg-[#f5f3ff]">
+                          +
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-[#6d28d9]">ثواني الفريق الثاني</p>
+                      <div className="mt-2 flex items-center justify-center gap-2">
+                        <Button type="button" onClick={() => setBuzzOpponentTimerDraft((previousValue) => Math.max(MIN_LETTER_HIVE_LIVE_BUZZ_TIMER_SECONDS, previousValue - 1))} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent px-4 text-[#6d28d9] hover:bg-[#f5f3ff]">
+                          -
+                        </Button>
+                        <div className="min-w-16 rounded-2xl border border-[#e7dcff] bg-white/90 px-4 py-2 text-lg font-black text-[#1f1147]">
+                          {buzzOpponentTimerDraft}
+                        </div>
+                        <Button type="button" onClick={() => setBuzzOpponentTimerDraft((previousValue) => Math.min(MAX_LETTER_HIVE_LIVE_BUZZ_TIMER_SECONDS, previousValue + 1))} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent px-4 text-[#6d28d9] hover:bg-[#f5f3ff]">
+                          +
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[1.6rem] border border-[#e7dcff] bg-[linear-gradient(180deg,rgba(248,244,255,0.9)_0%,rgba(255,255,255,0.96)_100%)] p-4 text-right shadow-[0_12px_30px_rgba(124,58,237,0.08)]">
+                    <p className="text-sm font-black text-[#6d28d9]">رابط المقدم</p>
+                    <div className="mt-3 flex flex-col gap-3">
+                      <p className="min-w-0 truncate rounded-2xl border border-[#e7dcff] bg-white/80 px-4 py-3 text-left text-xs text-[#5b5570]" dir="ltr">
+                        {match?.links.presenter}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" onClick={() => void handleCopy(match?.links.presenter || "", "رابط المقدم")} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
+                          <Copy className="h-4 w-4" />نسخ
+                        </Button>
+                        <Button type="button" asChild className="rounded-2xl bg-[#7c3aed] text-white hover:bg-[#6d28d9]">
+                          <a href={match?.links.presenter || "#"} target="_blank" rel="noreferrer">
+                            <ExternalLink className="h-4 w-4" />فتح
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                    <div className="rounded-[1.4rem] border border-[#df103a]/15 bg-[linear-gradient(135deg,rgba(223,16,58,0.1)_0%,rgba(255,255,255,0.95)_100%)] px-4 py-3 text-right shadow-[0_10px_24px_rgba(223,16,58,0.08)]">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-black text-[#9f1239]">اللون الأحمر</span>
+                        <span className="rounded-full bg-[#df103a] px-3 py-1 text-sm font-black text-white">{playerColorCounts.teamAPlayers}/2</span>
+                      </div>
+                    </div>
+                    <div className="rounded-[1.4rem] border border-[#14b8a6]/20 bg-[linear-gradient(135deg,rgba(20,184,166,0.14)_0%,rgba(255,255,255,0.95)_100%)] px-4 py-3 text-right shadow-[0_10px_24px_rgba(20,184,166,0.09)]">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-black text-[#0f766e]">اللون التركوازي</span>
+                        <span className="rounded-full bg-[#14b8a6] px-3 py-1 text-sm font-black text-white">{playerColorCounts.teamBPlayers}/2</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid content-start gap-4 sm:grid-cols-2">
+                  {match?.links.players.map((playerLink) => {
+                    const playerSlot = match.playerSlots.find((entry) => entry.slot === playerLink.slot)
+                    const accentClass = playerSlot?.color === "team_a"
+                      ? "bg-[#df103a]/10 text-[#df103a]"
+                      : playerSlot?.color === "team_b"
+                        ? "bg-[#10dfb5]/14 text-[#08755f]"
+                        : "bg-[#ede9fe] text-[#6d28d9]"
+
+                    return (
+                      <PlayerLinkCard
+                        key={playerLink.slot}
+                        title={`رابط اللاعب ${playerLink.slot}`}
+                        href={playerLink.href}
+                        playerName={playerSlot?.name || null}
+                        playerColor={playerSlot?.color || null}
+                        accentClass={accentClass}
+                        onCopy={() => void handleCopy(playerLink.href, `رابط اللاعب ${playerLink.slot}`)}
+                      />
+                    )
+                  })}
                 </div>
               </div>
 
-              <div className="mb-6 grid gap-4 md:grid-cols-2">
-                <TeamLinkCard
-                  title="رابط الفريق الأول"
-                  href={match?.links.teamA || ""}
-                  teamName={match?.teamAName || null}
-                  accentClass="bg-[#df103a]/10 text-[#df103a]"
-                  onCopy={() => void handleCopy(match?.links.teamA || "", "رابط الفريق الأول")}
-                />
-                <TeamLinkCard
-                  title="رابط الفريق الثاني"
-                  href={match?.links.teamB || ""}
-                  teamName={match?.teamBName || null}
-                  accentClass="bg-[#10dfb5]/14 text-[#08755f]"
-                  onCopy={() => void handleCopy(match?.links.teamB || "", "رابط الفريق الثاني")}
-                />
-              </div>
-
-              <Button type="button" onClick={() => void updateState({ is_open: true, status: "live" })} disabled={actionLoading || !canStartGame} className="rounded-2xl bg-[#7c3aed] px-8 text-white hover:bg-[#6d28d9] disabled:opacity-50">
+              <Button type="button" onClick={() => void updateState({ is_open: true, status: "live", team_a_score: 0, team_b_score: 0, claimed_cells: Array(25).fill(null), metadata: { roundTarget: roundTargetDraft, buzzOwnerTimerSeconds: buzzOwnerTimerDraft, buzzOpponentTimerSeconds: buzzOpponentTimerDraft } })} disabled={actionLoading || !canStartGame} className="rounded-2xl bg-[#7c3aed] px-8 text-white hover:bg-[#6d28d9] disabled:opacity-50">
                 بدء اللعبة
               </Button>
             </div>
           </div>
         ) : match?.currentPrompt ? (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(5px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 110, padding: "16px" }}>
-            <div style={{ background: "white", padding: "36px 30px", borderRadius: "25px", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", minWidth: 320, maxWidth: 720, width: "100%" }}>
-              <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "999px", background: "#f5f3ff", color: "#6d28d9", padding: "7px 14px", fontWeight: 900, fontSize: "0.95rem", marginBottom: "16px" }}>
-                {match.currentLetter ? `حرف ${match.currentLetter}` : "سؤال البطولة"}
-              </div>
-              <h3 style={{ marginBottom: 18, fontSize: "1.3rem", color: "#2c3e50", lineHeight: 1.9, fontWeight: 900 }}>{match.currentPrompt}</h3>
+            <div style={{ width: "100%", maxWidth: 720, display: "flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
               {match.firstBuzzSide ? (
-                <div style={{ marginBottom: 18, borderRadius: "16px", background: "linear-gradient(135deg, rgba(124,58,237,0.1) 0%, rgba(124,58,237,0.04) 100%)", border: "1px solid rgba(124,58,237,0.15)", padding: "12px 16px", color: "#6d28d9", fontWeight: 900 }}>
-                  أول من ضغط الزر: {firstBuzzLabel}
-                </div>
+                <>
+                  <div style={{ background: "rgba(255,255,255,0.96)", padding: "14px 18px", borderRadius: "22px", textAlign: "center", boxShadow: "0 18px 36px rgba(0,0,0,0.18)", minWidth: 220, maxWidth: 320, width: "100%" }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "999px", background: "rgba(15,23,42,0.06)", padding: "6px 12px", color: "#475569", fontSize: "0.82rem", fontWeight: 900 }}>
+                      أول من ضغط الزر
+                    </div>
+                    <div
+                      style={{
+                        marginTop: "10px",
+                        borderRadius: "999px",
+                        background: match.firstBuzzSide === "team_a" ? "rgba(223,16,58,0.08)" : "rgba(16,223,181,0.12)",
+                        border: match.firstBuzzSide === "team_a" ? "1px solid rgba(223,16,58,0.18)" : "1px solid rgba(16,223,181,0.2)",
+                        padding: "8px 18px",
+                        color: match.firstBuzzSide === "team_a" ? "#df103a" : "#08755f",
+                        fontSize: "0.98rem",
+                        fontWeight: 900,
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {firstBuzzLabel}
+                    </div>
+                  </div>
+                  <LetterHiveLiveBuzzTimerCard
+                    firstBuzzSide={match.firstBuzzSide}
+                    firstBuzzedAt={match.firstBuzzedAt}
+                    teamAName={match.teamAName || "الفريق الأول"}
+                    teamBName={match.teamBName || "الفريق الثاني"}
+                    buzzOwnerTimerSeconds={match.buzzOwnerTimerSeconds}
+                    buzzOpponentTimerSeconds={match.buzzOpponentTimerSeconds}
+                    serverTimeOffsetMs={serverTimeOffsetMs}
+                  />
+                </>
               ) : null}
-              {match.showAnswer && match.currentAnswer ? (
-                <div style={{ fontSize: "1.5rem", color: "#008a1e", marginBottom: 18, fontWeight: "bold" }}>{match.currentAnswer}</div>
-              ) : null}
-              {!match.currentAnswer ? (
-                <div className="mt-6 flex justify-center">
-                  <Button type="button" onClick={() => void handleClearCurrent()} disabled={actionLoading} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
-                    <Lock className="h-4 w-4" />إغلاق
-                  </Button>
+              <div style={{ background: "white", padding: "36px 30px", borderRadius: "25px", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", minWidth: 320, maxWidth: 720, width: "100%" }}>
+                <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "999px", background: "#f5f3ff", color: "#6d28d9", padding: "7px 14px", fontWeight: 900, fontSize: "0.95rem", marginBottom: "16px" }}>
+                  {match.currentLetter ? `حرف ${match.currentLetter}` : "سؤال البطولة"}
                 </div>
-              ) : (
-                <div className="mt-6 flex flex-wrap justify-center gap-2">
-                  <Button type="button" onClick={() => void handleRevealAnswer()} disabled={actionLoading || Boolean(match.showAnswer)} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
-                    إظهار الجواب
-                  </Button>
-                  <Button type="button" onClick={() => void handleClearCurrent()} disabled={actionLoading} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
-                    <Lock className="h-4 w-4" />إلغاء السؤال
-                  </Button>
-                  <Button type="button" onClick={() => void updateState({ status: "finished", is_open: false, buzz_enabled: false })} disabled={actionLoading || match.status === "finished"} className="rounded-2xl bg-red-600 text-white hover:bg-red-700">
-                    <Trophy className="h-4 w-4" />إنهاء المباراة
-                  </Button>
-                </div>
-              )}
-              {match.showAnswer && match.currentAnswer ? (
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  <Button type="button" disabled={actionLoading || match.currentCellIndex === null} onClick={() => void handleAssignCell("team_a")} className="rounded-2xl bg-[#df103a] text-white hover:opacity-95">
-                    {match.teamAName || "الفريق الأول"}
-                  </Button>
-                  <Button type="button" disabled={actionLoading || match.currentCellIndex === null} onClick={() => void handleAssignCell("team_b")} className="rounded-2xl bg-[#10dfb5] text-[#083b31] hover:opacity-95">
-                    {match.teamBName || "الفريق الثاني"}
-                  </Button>
-                </div>
-              ) : null}
+                {!questionHasStarted ? (
+                  <div style={{ marginBottom: "12px", color: "#7c3aed", fontSize: "0.95rem", fontWeight: 800 }}>
+                    يتم توحيد التوقيت بين الأجهزة، سيبدأ عرض السؤال الآن...
+                  </div>
+                ) : null}
+                <h3 style={{ marginBottom: 18, fontSize: "1.3rem", color: "#2c3e50", lineHeight: 1.9, fontWeight: 900 }}>
+                  <AnimatedQuestionText text={match.currentPrompt} ready={questionHasStarted} />
+                </h3>
+                {match.showAnswer && match.currentAnswer ? (
+                  <div style={{ fontSize: "1.5rem", color: "#008a1e", marginBottom: 18, fontWeight: "bold" }}>{match.currentAnswer}</div>
+                ) : null}
+                {match.currentAnswer ? (
+                  !match.showAnswer ? (
+                    <div className="mt-6 flex justify-center">
+                      <Button type="button" onClick={() => void handleRevealAnswer()} disabled={actionLoading} variant="outline" className="rounded-2xl border-[#d8c9fb] bg-transparent text-[#6d28d9] hover:bg-[#f5f3ff]">
+                        إظهار الجواب
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="mt-6 space-y-4">
+                      <div className="flex flex-wrap justify-center gap-3">
+                        <Button type="button" disabled={actionLoading || match.currentCellIndex === null} onClick={() => void handleAssignCell("team_a")} className="min-h-12 rounded-2xl bg-[#df103a] px-5 text-sm font-black text-white hover:bg-[#df103a] hover:opacity-95 sm:min-w-[150px]">
+                          {match.teamAName || "الفريق الأول"}
+                        </Button>
+                        <Button type="button" disabled={actionLoading || match.currentCellIndex === null} onClick={() => void handleAssignCell("team_b")} className="min-h-12 rounded-2xl bg-[#10dfb5] px-5 text-sm font-black text-[#083b31] hover:bg-[#10dfb5] hover:opacity-95 sm:min-w-[150px]">
+                          {match.teamBName || "الفريق الثاني"}
+                        </Button>
+                        <Button type="button" onClick={() => void handleClearCurrent()} disabled={actionLoading} variant="outline" className="min-h-12 rounded-2xl border-[#d8c9fb] bg-[#faf7ff] px-5 text-sm font-black text-[#6d28d9] hover:bg-[#f5f3ff] sm:min-w-[150px]">
+                          محد جاوب
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <div className="mt-6 flex justify-center">
+                    <Button type="button" onClick={() => void handleClearCurrent()} disabled={actionLoading} variant="outline" className="min-h-12 rounded-2xl border-[#d8c9fb] bg-[#faf7ff] px-5 text-sm font-black text-[#6d28d9] hover:bg-[#f5f3ff] sm:min-w-[150px]">
+                      محد جاوب
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : undefined

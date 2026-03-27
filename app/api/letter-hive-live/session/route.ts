@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import { notFoundResponse } from "@/lib/auth/guards"
-import { type LetterHiveLiveMatchRow, resolveMatchRole, sanitizeMatchForClient, sanitizeTeamName } from "@/lib/letter-hive-live"
+import {
+  buildLetterHiveLivePlayerSlotsMetadata,
+  groupLetterHiveLivePlayerNamesByColor,
+  type LetterHiveLiveMatchRow,
+  normalizeLetterHiveLivePlayerSlots,
+  resolveLetterHiveLivePlayerSlot,
+  resolveMatchRole,
+  sanitizeMatchForClient,
+  sanitizeTeamName,
+  type LetterHiveLiveTeamSide,
+} from "@/lib/letter-hive-live"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 async function findMatchByToken(token: string) {
@@ -22,6 +32,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const token = sanitizeTeamName(searchParams.get("token"))
+    const playerSlot = resolveLetterHiveLivePlayerSlot(searchParams.get("slot"))
 
     if (!token) {
       return NextResponse.json({ error: "رمز الجلسة مطلوب" }, { status: 400 })
@@ -37,8 +48,14 @@ export async function GET(request: NextRequest) {
       return notFoundResponse("الرابط غير صالح")
     }
 
+    const playerSlots = normalizeLetterHiveLivePlayerSlots(match.metadata)
+    const slotRole = role === "presenter" && playerSlot
+      ? playerSlots.find((entry) => entry.slot === playerSlot)?.color || "player"
+      : role
+
     return NextResponse.json({
-      match: sanitizeMatchForClient(match, role, new URL(request.url).origin),
+      match: sanitizeMatchForClient(match, slotRole, new URL(request.url).origin, playerSlot),
+      serverNow: new Date().toISOString(),
     })
   } catch (error) {
     console.error("Error fetching live letter hive session:", error)
@@ -51,9 +68,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const token = sanitizeTeamName(body?.token)
     const teamName = sanitizeTeamName(body?.teamName)
+    const playerName = sanitizeTeamName(body?.playerName)
+    const playerSlot = resolveLetterHiveLivePlayerSlot(body?.playerSlot)
+    const selectedColor = body?.selectedColor === "team_a" || body?.selectedColor === "team_b"
+      ? (body.selectedColor as LetterHiveLiveTeamSide)
+      : null
 
-    if (!token || !teamName) {
-      return NextResponse.json({ error: "الرابط واسم الفريق مطلوبان" }, { status: 400 })
+    if (!token) {
+      return NextResponse.json({ error: "الرابط مطلوب" }, { status: 400 })
     }
 
     const match = await findMatchByToken(token)
@@ -62,8 +84,71 @@ export async function POST(request: NextRequest) {
     }
 
     const role = resolveMatchRole(match, token)
-    if (!role || role === "presenter") {
-      return NextResponse.json({ error: "هذا الرابط ليس رابط فريق" }, { status: 403 })
+    if (!role) {
+      return NextResponse.json({ error: "هذا الرابط غير صالح" }, { status: 403 })
+    }
+
+    if (role === "presenter" && playerSlot) {
+      if (!playerName || !selectedColor) {
+        return NextResponse.json({ error: "اسم اللاعب واللون مطلوبان" }, { status: 400 })
+      }
+
+      const playerSlots = normalizeLetterHiveLivePlayerSlots(match.metadata)
+      const currentSlot = playerSlots.find((entry) => entry.slot === playerSlot)
+
+      if (!currentSlot) {
+        return NextResponse.json({ error: "رابط اللاعب غير صالح" }, { status: 400 })
+      }
+
+      if (currentSlot.name && (currentSlot.name !== playerName || currentSlot.color !== selectedColor)) {
+        return NextResponse.json({ error: "هذا الرابط مثبت مسبقاً للاعب آخر" }, { status: 409 })
+      }
+
+      const playersInSelectedColor = playerSlots.filter((entry) => entry.slot !== playerSlot && entry.color === selectedColor && entry.name)
+      if (playersInSelectedColor.length >= 2) {
+        return NextResponse.json({ error: "هذا اللون اكتمل بلاعبين بالفعل" }, { status: 409 })
+      }
+
+      const nextPlayerSlots = playerSlots.map((entry) => entry.slot === playerSlot ? { ...entry, name: playerName, color: selectedColor } : entry)
+      const normalizedMetadata = match.metadata && typeof match.metadata === "object" && !Array.isArray(match.metadata)
+        ? { ...(match.metadata as Record<string, unknown>) }
+        : {}
+      const groupedNames = groupLetterHiveLivePlayerNamesByColor(nextPlayerSlots)
+      const supabase = createAdminClient()
+      const { error } = await supabase
+        .from("letter_hive_live_matches")
+        .update({
+          metadata: {
+            ...normalizedMetadata,
+            playerSlots: buildLetterHiveLivePlayerSlotsMetadata(nextPlayerSlots),
+          },
+          team_a_name: groupedNames.teamAName,
+          team_b_name: groupedNames.teamBName,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", match.id)
+
+      if (error) {
+        throw error
+      }
+
+      const refreshedMatch = await findMatchByToken(token)
+      if (!refreshedMatch) {
+        return notFoundResponse("المباراة غير موجودة")
+      }
+
+      return NextResponse.json({
+        match: sanitizeMatchForClient(refreshedMatch, selectedColor, new URL(request.url).origin, playerSlot),
+        serverNow: new Date().toISOString(),
+      })
+    }
+
+    if (role === "presenter") {
+      return NextResponse.json({ error: "هذا الرابط مخصص للاعبين الأربعة فقط" }, { status: 403 })
+    }
+
+    if (!teamName) {
+      return NextResponse.json({ error: "اسم الفريق مطلوب" }, { status: 400 })
     }
 
     const columnName = role === "team_a" ? "team_a_name" : "team_b_name"
@@ -95,6 +180,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       match: sanitizeMatchForClient(refreshedMatch, role, new URL(request.url).origin),
+      serverNow: new Date().toISOString(),
     })
   } catch (error) {
     console.error("Error joining live letter hive match:", error)
