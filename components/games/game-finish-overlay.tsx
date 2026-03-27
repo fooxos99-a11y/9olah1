@@ -63,6 +63,9 @@ export function GameFinishOverlay({
   celebration = true,
   maxWidthClassName = "max-w-2xl",
 }: GameFinishOverlayProps) {
+  const actionLayoutClassName =
+    actions.length === 2 ? "grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3"
+
   return (
     <>
       <div className="fixed inset-0 z-[80] overflow-hidden bg-black/30 backdrop-blur-[6px]">
@@ -95,13 +98,13 @@ export function GameFinishOverlay({
               {subtitle ? <div className="mt-3 text-lg font-bold text-[#4c4570] sm:text-xl">{subtitle}</div> : null}
               {details ? <div className="mt-5 w-full">{details}</div> : null}
               {actions.length > 0 ? (
-                <div className="mt-8 grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className={`mt-8 grid w-full gap-3 ${actionLayoutClassName}`}>
                   {actions.map((action) => (
                     <Button
                       key={action.label}
                       onClick={action.onClick}
                       variant={action.tone === "outline" ? "outline" : undefined}
-                      className={`min-w-0 whitespace-normal break-words px-4 py-5 text-base sm:text-lg ${actionClassName(action.tone)}`}
+                      className={`w-full min-w-0 justify-center whitespace-normal break-words px-4 py-5 text-base sm:text-lg ${actionClassName(action.tone)}`}
                     >
                       {action.icon}
                       {action.label}
