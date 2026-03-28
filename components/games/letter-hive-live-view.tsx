@@ -234,6 +234,7 @@ export function LetterHiveLiveView({
   const [boardScale, setBoardScale] = useState(1)
   const [boardOffset, setBoardOffset] = useState({ x: 0, y: 0 })
   const [isPanningBoard, setIsPanningBoard] = useState(false)
+  const boardSelectionLocked = !onCellSelect || currentPrompt !== null || currentCellIndex !== null || selectedCellIndex !== null
 
   const boardViewportRef = useRef<HTMLDivElement | null>(null)
   const boardPanStartRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 })
@@ -327,14 +328,15 @@ export function LetterHiveLiveView({
             : "rgba(124, 58, 237, 0.18)"
       const shadowFill = status === "team_a" ? "rgba(223,16,58,0.22)" : status === "team_b" ? "rgba(16,223,181,0.22)" : "rgba(44,62,80,0.08)"
       const glossFill = status ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.92)"
+      const canSelectCell = !isClaimed && !boardSelectionLocked
 
       return (
         <g
           key={index}
           transform={`translate(${x},${y})`}
-          style={{ cursor: onCellSelect && !isClaimed ? "pointer" : "default" }}
+          style={{ cursor: canSelectCell ? "pointer" : "default" }}
           onClick={() => {
-            if (onCellSelect && !isClaimed) {
+            if (canSelectCell && onCellSelect) {
               onCellSelect(index)
             }
           }}

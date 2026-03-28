@@ -10,11 +10,14 @@ export type LetterHiveLiveStatus = "waiting" | "live" | "finished"
 export const DEFAULT_LETTER_HIVE_LIVE_ROUND_TARGET = 3
 export const MIN_LETTER_HIVE_LIVE_ROUND_TARGET = 1
 export const MAX_LETTER_HIVE_LIVE_ROUND_TARGET = 9
+export const DEFAULT_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM = 2
+export const MIN_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM = 1
+export const MAX_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM = 3
 export const DEFAULT_LETTER_HIVE_LIVE_BUZZ_OWNER_TIMER_SECONDS = 5
 export const DEFAULT_LETTER_HIVE_LIVE_BUZZ_OPPONENT_TIMER_SECONDS = 30
 export const MIN_LETTER_HIVE_LIVE_BUZZ_TIMER_SECONDS = 1
 export const MAX_LETTER_HIVE_LIVE_BUZZ_TIMER_SECONDS = 90
-export const LETTER_HIVE_LIVE_PLAYER_SLOT_COUNT = 4
+export const LETTER_HIVE_LIVE_PLAYER_SLOT_COUNT = MAX_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM * 2
 
 export type LetterHiveLivePlayerSlot = {
   slot: number
@@ -101,6 +104,34 @@ export function resolveLetterHiveLivePlayerSlot(value: unknown) {
   return normalizedSlot
 }
 
+export function resolveLetterHiveLivePlayersPerTeam(value: unknown) {
+  const parsedValue = Number(value)
+
+  if (!Number.isFinite(parsedValue)) {
+    return null
+  }
+
+  return Math.max(
+    MIN_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM,
+    Math.min(MAX_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM, Math.trunc(parsedValue)),
+  )
+}
+
+export function resolveConfiguredLetterHiveLivePlayersPerTeam(metadata: unknown) {
+  const normalizedMetadata = normalizeMatchMetadata(metadata)
+
+  return resolveLetterHiveLivePlayersPerTeam(normalizedMetadata.playersPerTeam)
+    ?? DEFAULT_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM
+}
+
+export function getLetterHiveLiveActivePlayerSlotCount(metadata: unknown) {
+  return resolveConfiguredLetterHiveLivePlayersPerTeam(metadata) * 2
+}
+
+export function isLetterHiveLivePlayerSlotActive(metadata: unknown, slot: number) {
+  return slot >= 1 && slot <= getLetterHiveLiveActivePlayerSlotCount(metadata)
+}
+
 export function normalizeLetterHiveLivePlayerSlots(metadata: unknown) {
   const normalizedMetadata = normalizeMatchMetadata(metadata)
   const rawSlots = normalizedMetadata.playerSlots
@@ -153,12 +184,14 @@ export function groupLetterHiveLivePlayerNamesByColor(playerSlots: LetterHiveLiv
   }
 }
 
-export function buildMatchLinks(origin: string, match: Pick<LetterHiveLiveMatchRow, "presenter_token" | "team_a_token" | "team_b_token">) {
+export function buildMatchLinks(origin: string, match: Pick<LetterHiveLiveMatchRow, "presenter_token" | "team_a_token" | "team_b_token" | "metadata">) {
+  const activePlayerSlotCount = getLetterHiveLiveActivePlayerSlotCount(match.metadata)
+
   return {
     presenter: `${origin}/competitions/letter-hive-live/presenter/${match.presenter_token}`,
     teamA: `${origin}/competitions/letter-hive-live/team/${match.team_a_token}`,
     teamB: `${origin}/competitions/letter-hive-live/team/${match.team_b_token}`,
-    players: Array.from({ length: LETTER_HIVE_LIVE_PLAYER_SLOT_COUNT }, (_, index) => {
+    players: Array.from({ length: activePlayerSlotCount }, (_, index) => {
       const slot = index + 1
 
       return {
@@ -283,6 +316,8 @@ export function hasCompletedLetterHiveLiveRound(claimedCells: Array<null | "team
 }
 
 export function sanitizeMatchForClient(match: LetterHiveLiveMatchRow, role: LetterHiveLiveRole, origin: string, playerSlot?: number | null) {
+  const normalizedMetadata = normalizeMatchMetadata(match.metadata)
+  const playersPerTeam = resolveConfiguredLetterHiveLivePlayersPerTeam(match.metadata)
   const roundTarget = resolveLetterHiveLiveRoundTarget(match.metadata)
   const buzzOwnerTimerSeconds = resolveLetterHiveLiveBuzzOwnerTimerSeconds(match.metadata)
   const buzzOpponentTimerSeconds = resolveLetterHiveLiveBuzzOpponentTimerSeconds(match.metadata)
@@ -297,6 +332,7 @@ export function sanitizeMatchForClient(match: LetterHiveLiveMatchRow, role: Lett
     buzzEnabled: match.buzz_enabled,
     firstBuzzSide: match.first_buzz_side,
     firstBuzzedAt: match.first_buzzed_at,
+    firstBuzzPlayerName: sanitizeTeamName(normalizedMetadata.firstBuzzPlayerName) || null,
     currentPrompt: match.current_prompt,
     currentAnswer: role === "presenter" || match.show_answer ? match.current_answer : null,
     currentLetter: match.current_letter,
@@ -306,6 +342,7 @@ export function sanitizeMatchForClient(match: LetterHiveLiveMatchRow, role: Lett
     teamBName: groupedPlayerNames.teamBName || match.team_b_name,
     teamAScore: match.team_a_score,
     teamBScore: match.team_b_score,
+    playersPerTeam,
     roundTarget,
     buzzOwnerTimerSeconds,
     buzzOpponentTimerSeconds,

@@ -19,10 +19,12 @@ type PresenterMatch = {
   buzzEnabled: boolean
   firstBuzzSide: "team_a" | "team_b" | null
   firstBuzzedAt: string | null
+  firstBuzzPlayerName: string | null
   teamAName: string | null
   teamBName: string | null
   teamAScore: number
   teamBScore: number
+  playersPerTeam: number
   roundTarget: number
   buzzOwnerTimerSeconds: number
   buzzOpponentTimerSeconds: number
@@ -53,7 +55,7 @@ type PreloadedQuestion = {
   answer: string
 }
 
-type MatchBroadcastPatch = Partial<Pick<PresenterMatch, "status" | "isOpen" | "buzzEnabled" | "firstBuzzSide" | "firstBuzzedAt" | "teamAName" | "teamBName" | "teamAScore" | "teamBScore" | "roundTarget" | "buzzOwnerTimerSeconds" | "buzzOpponentTimerSeconds" | "currentPrompt" | "currentAnswer" | "currentLetter" | "currentCellIndex" | "showAnswer" | "updatedAt" | "playerSlots" | "boardLetters" | "claimedCells">>
+type MatchBroadcastPatch = Partial<Pick<PresenterMatch, "status" | "isOpen" | "buzzEnabled" | "firstBuzzSide" | "firstBuzzedAt" | "firstBuzzPlayerName" | "teamAName" | "teamBName" | "teamAScore" | "teamBScore" | "roundTarget" | "buzzOwnerTimerSeconds" | "buzzOpponentTimerSeconds" | "currentPrompt" | "currentAnswer" | "currentLetter" | "currentCellIndex" | "showAnswer" | "updatedAt" | "playerSlots" | "boardLetters" | "claimedCells">>
 
 const LIVE_SYNC_INTERVAL_MS = 2000
 
@@ -149,6 +151,7 @@ export default function LetterHiveLivePresenterPage() {
     buzzEnabled: nextMatch.buzzEnabled,
     firstBuzzSide: nextMatch.firstBuzzSide,
     firstBuzzedAt: nextMatch.firstBuzzedAt,
+    firstBuzzPlayerName: nextMatch.firstBuzzPlayerName,
     teamAName: nextMatch.teamAName,
     teamBName: nextMatch.teamBName,
     teamAScore: nextMatch.teamAScore,
@@ -331,6 +334,10 @@ export default function LetterHiveLivePresenterPage() {
   const firstBuzzLabel = useMemo(() => {
     if (!match?.firstBuzzSide) {
       return "لا يوجد ضغط مسجل"
+    }
+
+    if (match.firstBuzzPlayerName) {
+      return match.firstBuzzPlayerName
     }
 
     return match.firstBuzzSide === "team_a"
@@ -542,7 +549,9 @@ export default function LetterHiveLivePresenterPage() {
     setSelectedCellIndex(null)
   }
 
-  const canStartGame = playerColorCounts.teamAPlayers === 2 && playerColorCounts.teamBPlayers === 2
+  const requiredPlayersPerTeam = match?.playersPerTeam ?? 2
+  const canStartGame = playerColorCounts.teamAPlayers === requiredPlayersPerTeam && playerColorCounts.teamBPlayers === requiredPlayersPerTeam
+  const canSelectBoardCell = !actionLoading && !match?.currentPrompt && match?.currentCellIndex === null && selectedCellIndex === null
 
   if (loading) {
     return <SiteLoader fullScreen />
@@ -572,7 +581,7 @@ export default function LetterHiveLivePresenterPage() {
       showAnswer={Boolean(match?.showAnswer)}
       currentCellIndex={match?.currentCellIndex ?? null}
       error={error}
-      onCellSelect={!actionLoading && !match?.currentPrompt ? handleSelectCell : undefined}
+      onCellSelect={canSelectBoardCell ? handleSelectCell : undefined}
       selectedCellIndex={selectedCellIndex}
       questionOverlay={
         match?.status === "waiting" ? (
@@ -580,7 +589,7 @@ export default function LetterHiveLivePresenterPage() {
             <div style={{ background: "white", padding: "26px 22px", borderRadius: "25px", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", minWidth: 320, maxWidth: 980, width: "100%" }}>
               <h3 style={{ marginBottom: 12, fontSize: "1.6rem", color: "#2c3e50", fontWeight: 900 }}>جاهز لبدء البطولة</h3>
               <p style={{ marginBottom: 20, fontSize: "1rem", color: "#6b7280", lineHeight: 1.9 }}>
-                {canStartGame ? "بعد الضغط على بدء اللعبة تستطيع اختيار أي خلية ليظهر سؤالها الخاص من قاعدة البطولة." : "يجب أن يكتمل 4 لاعبين، لاعبان للأحمر ولاعبان للتركوازي، قبل أن تستطيع بدء اللعبة."}
+                {canStartGame ? "بعد الضغط على بدء اللعبة تستطيع اختيار أي خلية ليظهر سؤالها الخاص من قاعدة البطولة." : `يجب أن يكتمل كل لون بعدد ${requiredPlayersPerTeam} من اللاعبين قبل أن تستطيع بدء اللعبة.`}
               </p>
               <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
                 <div className="space-y-4">
@@ -653,13 +662,13 @@ export default function LetterHiveLivePresenterPage() {
                     <div className="rounded-[1.4rem] border border-[#df103a]/15 bg-[linear-gradient(135deg,rgba(223,16,58,0.1)_0%,rgba(255,255,255,0.95)_100%)] px-4 py-3 text-right shadow-[0_10px_24px_rgba(223,16,58,0.08)]">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm font-black text-[#9f1239]">اللون الأحمر</span>
-                        <span className="rounded-full bg-[#df103a] px-3 py-1 text-sm font-black text-white">{playerColorCounts.teamAPlayers}/2</span>
+                        <span className="rounded-full bg-[#df103a] px-3 py-1 text-sm font-black text-white">{playerColorCounts.teamAPlayers}/{requiredPlayersPerTeam}</span>
                       </div>
                     </div>
                     <div className="rounded-[1.4rem] border border-[#14b8a6]/20 bg-[linear-gradient(135deg,rgba(20,184,166,0.14)_0%,rgba(255,255,255,0.95)_100%)] px-4 py-3 text-right shadow-[0_10px_24px_rgba(20,184,166,0.09)]">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm font-black text-[#0f766e]">اللون التركوازي</span>
-                        <span className="rounded-full bg-[#14b8a6] px-3 py-1 text-sm font-black text-white">{playerColorCounts.teamBPlayers}/2</span>
+                        <span className="rounded-full bg-[#14b8a6] px-3 py-1 text-sm font-black text-white">{playerColorCounts.teamBPlayers}/{requiredPlayersPerTeam}</span>
                       </div>
                     </div>
                   </div>
@@ -694,7 +703,7 @@ export default function LetterHiveLivePresenterPage() {
               </Button>
             </div>
           </div>
-        ) : match?.currentPrompt ? (
+        ) : match?.currentPrompt && questionHasStarted ? (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(5px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 110, padding: "16px" }}>
             <div style={{ width: "100%", maxWidth: 720, display: "flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
               {match.firstBuzzSide ? (
@@ -710,7 +719,7 @@ export default function LetterHiveLivePresenterPage() {
                         background: match.firstBuzzSide === "team_a" ? "rgba(223,16,58,0.08)" : "rgba(16,223,181,0.12)",
                         border: match.firstBuzzSide === "team_a" ? "1px solid rgba(223,16,58,0.18)" : "1px solid rgba(16,223,181,0.2)",
                         padding: "8px 18px",
-                        color: match.firstBuzzSide === "team_a" ? "#df103a" : "#08755f",
+                        color: "#ffffff",
                         fontSize: "0.98rem",
                         fontWeight: 900,
                         lineHeight: 1.2,
@@ -734,11 +743,6 @@ export default function LetterHiveLivePresenterPage() {
                 <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "999px", background: "#f5f3ff", color: "#6d28d9", padding: "7px 14px", fontWeight: 900, fontSize: "0.95rem", marginBottom: "16px" }}>
                   {match.currentLetter ? `حرف ${match.currentLetter}` : "سؤال البطولة"}
                 </div>
-                {!questionHasStarted ? (
-                  <div style={{ marginBottom: "12px", color: "#7c3aed", fontSize: "0.95rem", fontWeight: 800 }}>
-                    يتم توحيد التوقيت بين الأجهزة، سيبدأ عرض السؤال الآن...
-                  </div>
-                ) : null}
                 <h3 style={{ marginBottom: 18, fontSize: "1.3rem", color: "#2c3e50", lineHeight: 1.9, fontWeight: 900 }}>
                   <AnimatedQuestionText text={match.currentPrompt} ready={questionHasStarted} />
                 </h3>

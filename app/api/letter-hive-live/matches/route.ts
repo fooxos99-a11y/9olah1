@@ -1,7 +1,13 @@
 import { randomBytes } from "crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { forbiddenResponse, getRequestSession, unauthorizedResponse } from "@/lib/auth/guards"
-import { buildMatchLinks, LETTER_HIVE_LIVE_BASE_LETTERS, shuffleLetters } from "@/lib/letter-hive-live"
+import {
+  buildMatchLinks,
+  DEFAULT_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM,
+  LETTER_HIVE_LIVE_BASE_LETTERS,
+  resolveLetterHiveLivePlayersPerTeam,
+  shuffleLetters,
+} from "@/lib/letter-hive-live"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 function generateToken() {
@@ -25,6 +31,14 @@ export async function POST(request: NextRequest) {
     const teamBToken = generateToken()
     const boardLetters = shuffleLetters(LETTER_HIVE_LIVE_BASE_LETTERS)
     const claimedCells = Array(25).fill(null)
+    let playersPerTeam = DEFAULT_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM
+
+    try {
+      const body = await request.json()
+      playersPerTeam = resolveLetterHiveLivePlayersPerTeam(body?.playersPerTeam) ?? DEFAULT_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM
+    } catch {
+      playersPerTeam = DEFAULT_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM
+    }
 
     const { data, error } = await supabase
       .from("letter_hive_live_matches")
@@ -40,8 +54,11 @@ export async function POST(request: NextRequest) {
         buzz_enabled: false,
         board_letters: boardLetters,
         claimed_cells: claimedCells,
+        metadata: {
+          playersPerTeam,
+        },
       })
-      .select("id, presenter_token, team_a_token, team_b_token, status, created_at")
+      .select("id, presenter_token, team_a_token, team_b_token, status, created_at, metadata")
       .single()
 
     if (error) {
@@ -58,6 +75,7 @@ export async function POST(request: NextRequest) {
         presenter_token: data.presenter_token,
         team_a_token: data.team_a_token,
         team_b_token: data.team_b_token,
+        metadata: data.metadata,
       }),
     })
   } catch (error) {

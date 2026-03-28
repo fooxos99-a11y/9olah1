@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { notFoundResponse } from "@/lib/auth/guards"
 import {
+  isLetterHiveLivePlayerSlotActive,
   type LetterHiveLiveMatchRow,
+  normalizeMatchMetadata,
   normalizeLetterHiveLivePlayerSlots,
   resolveLetterHiveLivePlayerSlot,
   resolveMatchRole,
@@ -41,8 +43,14 @@ export async function POST(request: NextRequest) {
     }
 
     const role = resolveMatchRole(match, token)
+    const playerSlots = normalizeLetterHiveLivePlayerSlots(match.metadata)
+    const activePlayerSlot = role === "presenter" && playerSlot && isLetterHiveLivePlayerSlotActive(match.metadata, playerSlot)
+      ? playerSlots.find((entry) => entry.slot === playerSlot) || null
+      : null
     const playerRole = role === "presenter" && playerSlot
-      ? normalizeLetterHiveLivePlayerSlots(match.metadata).find((entry) => entry.slot === playerSlot)?.color || null
+      ? (isLetterHiveLivePlayerSlotActive(match.metadata, playerSlot)
+        ? activePlayerSlot?.color || null
+        : null)
       : role
 
     if (playerRole !== "team_a" && playerRole !== "team_b") {
@@ -68,6 +76,11 @@ export async function POST(request: NextRequest) {
         first_buzz_side: playerRole,
         first_buzzed_at: new Date().toISOString(),
         buzz_enabled: false,
+        metadata: {
+          ...normalizeMatchMetadata(match.metadata),
+          firstBuzzPlayerName: activePlayerSlot?.name || null,
+          firstBuzzPlayerSlot: activePlayerSlot?.slot || null,
+        },
         updated_at: new Date().toISOString(),
       })
       .eq("id", match.id)

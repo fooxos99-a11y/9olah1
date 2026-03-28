@@ -233,29 +233,23 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq("id", match.id)
+        .is("current_prompt", null)
+        .is("current_cell_index", null)
         .select("*")
-        .single()
+        .maybeSingle()
 
       if (updateError) {
         throw updateError
+      }
+
+      if (!updatedMatch) {
+        return NextResponse.json({ error: "يوجد سؤال جارٍ بالفعل" }, { status: 409 })
       }
 
       return NextResponse.json({
         match: sanitizeMatchForClient(updatedMatch as LetterHiveLiveMatchRow, "presenter", new URL(request.url).origin),
         serverNow: new Date().toISOString(),
       })
-    }
-
-    const { error: insertUsedError } = await supabase
-      .from("letter_hive_live_used_questions")
-      .insert({
-        match_id: match.id,
-        question_id: nextQuestion.id,
-        letter: selectedLetter,
-      })
-
-    if (insertUsedError) {
-      throw insertUsedError
     }
 
     const { data: updatedMatch, error: updateError } = await supabase
@@ -272,11 +266,29 @@ export async function POST(request: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq("id", match.id)
+      .is("current_prompt", null)
+      .is("current_cell_index", null)
       .select("*")
-      .single()
+      .maybeSingle()
 
     if (updateError) {
       throw updateError
+    }
+
+    if (!updatedMatch) {
+      return NextResponse.json({ error: "يوجد سؤال جارٍ بالفعل" }, { status: 409 })
+    }
+
+    const { error: insertUsedError } = await supabase
+      .from("letter_hive_live_used_questions")
+      .insert({
+        match_id: match.id,
+        question_id: nextQuestion.id,
+        letter: selectedLetter,
+      })
+
+    if (insertUsedError) {
+      throw insertUsedError
     }
 
     return NextResponse.json({

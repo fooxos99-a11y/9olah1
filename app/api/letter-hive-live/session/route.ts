@@ -3,8 +3,10 @@ import { notFoundResponse } from "@/lib/auth/guards"
 import {
   buildLetterHiveLivePlayerSlotsMetadata,
   groupLetterHiveLivePlayerNamesByColor,
+  isLetterHiveLivePlayerSlotActive,
   type LetterHiveLiveMatchRow,
   normalizeLetterHiveLivePlayerSlots,
+  resolveConfiguredLetterHiveLivePlayersPerTeam,
   resolveLetterHiveLivePlayerSlot,
   resolveMatchRole,
   sanitizeMatchForClient,
@@ -49,6 +51,12 @@ export async function GET(request: NextRequest) {
     }
 
     const playerSlots = normalizeLetterHiveLivePlayerSlots(match.metadata)
+    const isActivePlayerSlot = playerSlot ? isLetterHiveLivePlayerSlotActive(match.metadata, playerSlot) : false
+
+    if (role === "presenter" && playerSlot && !isActivePlayerSlot) {
+      return NextResponse.json({ error: "رابط اللاعب غير صالح" }, { status: 400 })
+    }
+
     const slotRole = role === "presenter" && playerSlot
       ? playerSlots.find((entry) => entry.slot === playerSlot)?.color || "player"
       : role
@@ -89,6 +97,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (role === "presenter" && playerSlot) {
+      if (!isLetterHiveLivePlayerSlotActive(match.metadata, playerSlot)) {
+        return NextResponse.json({ error: "رابط اللاعب غير صالح" }, { status: 400 })
+      }
+
       if (!playerName || !selectedColor) {
         return NextResponse.json({ error: "اسم اللاعب واللون مطلوبان" }, { status: 400 })
       }
@@ -104,9 +116,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "هذا الرابط مثبت مسبقاً للاعب آخر" }, { status: 409 })
       }
 
+      const playersPerTeam = resolveConfiguredLetterHiveLivePlayersPerTeam(match.metadata)
       const playersInSelectedColor = playerSlots.filter((entry) => entry.slot !== playerSlot && entry.color === selectedColor && entry.name)
-      if (playersInSelectedColor.length >= 2) {
-        return NextResponse.json({ error: "هذا اللون اكتمل بلاعبين بالفعل" }, { status: 409 })
+      if (playersInSelectedColor.length >= playersPerTeam) {
+        return NextResponse.json({ error: `هذا اللون اكتمل بعدد ${playersPerTeam} لاعبين بالفعل` }, { status: 409 })
       }
 
       const nextPlayerSlots = playerSlots.map((entry) => entry.slot === playerSlot ? { ...entry, name: playerName, color: selectedColor } : entry)
@@ -144,7 +157,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (role === "presenter") {
-      return NextResponse.json({ error: "هذا الرابط مخصص للاعبين الأربعة فقط" }, { status: 403 })
+      return NextResponse.json({ error: "هذا الرابط مخصص لروابط اللاعبين فقط" }, { status: 403 })
     }
 
     if (!teamName) {

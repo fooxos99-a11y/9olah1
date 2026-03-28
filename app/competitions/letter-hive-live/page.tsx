@@ -8,6 +8,7 @@ import { Footer } from "@/components/footer"
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
+import { MAX_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM, MIN_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM } from "@/lib/letter-hive-live"
 
 type AuthUser = {
   id: string
@@ -21,6 +22,7 @@ export default function LetterHiveLiveEntryPage() {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState("")
+  const [playersPerTeam, setPlayersPerTeam] = useState(2)
   const [registrationForm, setRegistrationForm] = useState({
     teamName: "",
     playerOneName: "",
@@ -87,6 +89,10 @@ export default function LetterHiveLiveEntryPage() {
 
       const response = await fetch("/api/letter-hive-live/matches", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ playersPerTeam }),
       })
 
       const data = await response.json()
@@ -152,17 +158,6 @@ export default function LetterHiveLiveEntryPage() {
     }
   }
 
-  const handleCopy = async (value: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopyMessage(`تم نسخ ${label}`)
-      window.setTimeout(() => setCopyMessage(""), 2500)
-    } catch {
-      setCopyMessage("تعذر النسخ من المتصفح")
-      window.setTimeout(() => setCopyMessage(""), 2500)
-    }
-  }
-
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#fef3c7_0%,rgba(254,243,199,0.42)_18%,transparent_40%),radial-gradient(circle_at_right,#ddd6fe_0%,rgba(221,214,254,0.45)_20%,transparent_42%),linear-gradient(180deg,#fffdf8_0%,#faf7ff_52%,#ffffff_100%)]" dir="rtl">
       <Header />
@@ -174,6 +169,27 @@ export default function LetterHiveLiveEntryPage() {
                 <h1 className="text-3xl font-black leading-tight text-[#1f1147] md:text-5xl">بطولة خلية الحروف للقيمرزيون</h1>
 
                 <div className="mt-8 space-y-4">
+                  <div className="mx-auto max-w-md rounded-[1.6rem] border border-[#e7dcff] bg-white/85 p-4 text-right shadow-[0_12px_36px_rgba(124,58,237,0.08)]">
+                    <p className="text-sm font-black text-[#6d28d9]">كم لاعب لكل فريق؟</p>
+                    <p className="mt-1 text-xs font-semibold text-[#7b7394]">اختر من 1 إلى 3، وسيتم إنشاء الروابط بناءً على العدد المختار.</p>
+                    <div className="mt-4 grid grid-cols-3 gap-3">
+                      {Array.from({ length: MAX_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM - MIN_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM + 1 }, (_, index) => {
+                        const option = index + MIN_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM
+
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => setPlayersPerTeam(option)}
+                            className={`h-12 rounded-[1.25rem] border text-sm font-black transition ${playersPerTeam === option ? "border-[#7c3aed] bg-[linear-gradient(135deg,#8b5cf6_0%,#6d28d9_100%)] text-white shadow-[0_10px_28px_rgba(124,58,237,0.2)]" : "border-[#d9cdf8] bg-[#fcfbff] text-[#4c3d77] hover:border-[#bda8f6]"}`}
+                          >
+                            {option}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
                   <Button
                     type="button"
                     onClick={handleCreateMatch}

@@ -12,6 +12,7 @@ type TeamRole = "team_a" | "team_b"
 type ViewerRole = TeamRole | "player"
 
 type MatchBroadcastPatch = Partial<Pick<TeamMatch, "status" | "isOpen" | "buzzEnabled" | "firstBuzzSide" | "firstBuzzedAt" | "teamAName" | "teamBName" | "teamAScore" | "teamBScore" | "roundTarget" | "buzzOwnerTimerSeconds" | "buzzOpponentTimerSeconds" | "currentPrompt" | "currentAnswer" | "currentLetter" | "currentCellIndex" | "showAnswer" | "updatedAt" | "playerSlots" | "boardLetters" | "claimedCells">>
+type MatchBroadcastPatch = Partial<Pick<TeamMatch, "status" | "isOpen" | "buzzEnabled" | "firstBuzzSide" | "firstBuzzedAt" | "firstBuzzPlayerName" | "teamAName" | "teamBName" | "teamAScore" | "teamBScore" | "roundTarget" | "buzzOwnerTimerSeconds" | "buzzOpponentTimerSeconds" | "currentPrompt" | "currentAnswer" | "currentLetter" | "currentCellIndex" | "showAnswer" | "updatedAt" | "playerSlots" | "boardLetters" | "claimedCells">>
 
 type TeamMatch = {
   id: string
@@ -22,6 +23,7 @@ type TeamMatch = {
   buzzEnabled: boolean
   firstBuzzSide: TeamRole | null
   firstBuzzedAt: string | null
+  firstBuzzPlayerName: string | null
   teamAName: string | null
   teamBName: string | null
   teamAScore: number
@@ -82,6 +84,7 @@ export default function LetterHiveLiveTeamPage() {
     buzzEnabled: nextMatch.buzzEnabled,
     firstBuzzSide: nextMatch.firstBuzzSide,
     firstBuzzedAt: nextMatch.firstBuzzedAt,
+    firstBuzzPlayerName: nextMatch.firstBuzzPlayerName,
     teamAName: nextMatch.teamAName,
     teamBName: nextMatch.teamBName,
     teamAScore: nextMatch.teamAScore,
@@ -255,6 +258,10 @@ export default function LetterHiveLiveTeamPage() {
   const firstBuzzLabel = useMemo(() => {
     if (!match?.firstBuzzSide) {
       return ""
+    }
+
+    if (match.firstBuzzPlayerName) {
+      return match.firstBuzzPlayerName
     }
 
     return match.firstBuzzSide === "team_a"
@@ -448,7 +455,7 @@ export default function LetterHiveLiveTeamPage() {
               <p style={{ fontSize: "1rem", color: "#6b7280", lineHeight: 1.9 }}>سيبدأ عرض أسئلة البطولة هنا مباشرة بعد أن يضغط المقدم على بدء اللعبة.</p>
             </div>
           </div>
-        ) : match?.currentPrompt ? (
+        ) : match?.currentPrompt && questionHasStarted ? (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(5px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 110, padding: "16px" }}>
             <div style={{ width: "100%", maxWidth: 720, display: "flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
               {match.firstBuzzSide ? (
@@ -464,7 +471,7 @@ export default function LetterHiveLiveTeamPage() {
                         background: match.firstBuzzSide === "team_a" ? "rgba(223,16,58,0.08)" : "rgba(16,223,181,0.12)",
                         border: match.firstBuzzSide === "team_a" ? "1px solid rgba(223,16,58,0.18)" : "1px solid rgba(16,223,181,0.2)",
                         padding: "8px 18px",
-                        color: match.firstBuzzSide === "team_a" ? "#df103a" : "#08755f",
+                        color: "#ffffff",
                         fontSize: "0.98rem",
                         fontWeight: 900,
                         lineHeight: 1.2,
@@ -488,11 +495,6 @@ export default function LetterHiveLiveTeamPage() {
                 <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "999px", background: "#f5f3ff", color: "#6d28d9", padding: "7px 14px", fontWeight: 900, fontSize: "0.95rem", marginBottom: "16px" }}>
                   {match.currentLetter ? `حرف ${match.currentLetter}` : "سؤال البطولة"}
                 </div>
-                {!questionHasStarted ? (
-                  <div style={{ marginBottom: "12px", color: "#7c3aed", fontSize: "0.95rem", fontWeight: 800 }}>
-                    جارٍ توحيد التوقيت بين الفرق، سيبدأ السؤال الآن...
-                  </div>
-                ) : null}
                 <h3 style={{ marginBottom: 18, fontSize: "1.3rem", color: "#2c3e50", lineHeight: 1.9, fontWeight: 900 }}>
                   <AnimatedQuestionText text={match.currentPrompt} ready={questionHasStarted} paused={questionHasStarted && (localBuzzPause || match.firstBuzzSide === match.role)} />
                 </h3>

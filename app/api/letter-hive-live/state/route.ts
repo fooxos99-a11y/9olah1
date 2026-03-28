@@ -78,6 +78,14 @@ export async function PATCH(request: NextRequest) {
 
     if (updatePayload.first_buzz_side === null) {
       updatePayload.first_buzzed_at = null
+
+      const nextMetadata = Object.prototype.hasOwnProperty.call(updatePayload, "metadata")
+        ? normalizeMatchMetadata(updatePayload.metadata)
+        : normalizeMatchMetadata(match.metadata)
+
+      delete nextMetadata.firstBuzzPlayerName
+      delete nextMetadata.firstBuzzPlayerSlot
+      updatePayload.metadata = nextMetadata
     }
 
     const supabase = createAdminClient()
