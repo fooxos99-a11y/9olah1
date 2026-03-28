@@ -82,35 +82,38 @@ export function resolveQuestionStartTimeMs(updatedAt: string | null | undefined,
 }
 
 export function useSynchronizedQuestionStart(isActive: boolean, updatedAt: string | null | undefined, serverTimeOffsetMs = 0) {
-  const [hasStarted, setHasStarted] = useState(!isActive)
   const startAtMs = resolveQuestionStartTimeMs(updatedAt, serverTimeOffsetMs)
+  const [refreshToken, setRefreshToken] = useState(0)
+
+  const hasStarted = !isActive
+    ? true
+    : startAtMs !== null && Date.now() >= startAtMs
 
   useEffect(() => {
     if (!isActive) {
-      setHasStarted(true)
       return
     }
 
     if (startAtMs === null) {
-      setHasStarted(false)
       return
     }
 
     const remainingMs = Math.max(0, startAtMs - Date.now())
     if (remainingMs === 0) {
-      setHasStarted(true)
+      setRefreshToken((previousToken) => previousToken + 1)
       return
     }
 
-    setHasStarted(false)
     const timeoutId = window.setTimeout(() => {
-      setHasStarted(true)
+      setRefreshToken((previousToken) => previousToken + 1)
     }, remainingMs)
 
     return () => {
       window.clearTimeout(timeoutId)
     }
   }, [isActive, startAtMs])
+
+  void refreshToken
 
   return {
     hasStarted,

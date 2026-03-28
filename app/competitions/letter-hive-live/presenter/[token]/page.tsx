@@ -763,7 +763,7 @@ export default function LetterHiveLivePresenterPage() {
                         <Button type="button" disabled={actionLoading || match.currentCellIndex === null} onClick={() => void handleAssignCell("team_a")} className="min-h-12 rounded-2xl bg-[#df103a] px-5 text-sm font-black text-white hover:bg-[#df103a] hover:opacity-95 sm:min-w-[150px]">
                           {match.teamAName || "الفريق الأول"}
                         </Button>
-                        <Button type="button" disabled={actionLoading || match.currentCellIndex === null} onClick={() => void handleAssignCell("team_b")} className="min-h-12 rounded-2xl bg-[#10dfb5] px-5 text-sm font-black text-[#083b31] hover:bg-[#10dfb5] hover:opacity-95 sm:min-w-[150px]">
+                        <Button type="button" disabled={actionLoading || match.currentCellIndex === null} onClick={() => void handleAssignCell("team_b")} className="min-h-12 rounded-2xl bg-[#10dfb5] px-5 text-sm font-black text-white hover:bg-[#10dfb5] hover:opacity-95 sm:min-w-[150px]">
                           {match.teamBName || "الفريق الثاني"}
                         </Button>
                         <Button type="button" onClick={() => void handleClearCurrent()} disabled={actionLoading} variant="outline" className="min-h-12 rounded-2xl border-[#d8c9fb] bg-[#faf7ff] px-5 text-sm font-black text-[#6d28d9] hover:bg-[#f5f3ff] sm:min-w-[150px]">
