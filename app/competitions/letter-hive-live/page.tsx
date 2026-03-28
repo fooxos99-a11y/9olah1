@@ -171,7 +171,6 @@ export default function LetterHiveLiveEntryPage() {
                 <div className="mt-8 space-y-4">
                   <div className="mx-auto max-w-md rounded-[1.6rem] border border-[#e7dcff] bg-white/85 p-4 text-right shadow-[0_12px_36px_rgba(124,58,237,0.08)]">
                     <p className="text-sm font-black text-[#6d28d9]">كم لاعب لكل فريق؟</p>
-                    <p className="mt-1 text-xs font-semibold text-[#7b7394]">اختر من 1 إلى 3، وسيتم إنشاء الروابط بناءً على العدد المختار.</p>
                     <div className="mt-4 grid grid-cols-3 gap-3">
                       {Array.from({ length: MAX_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM - MIN_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM + 1 }, (_, index) => {
                         const option = index + MIN_LETTER_HIVE_LIVE_PLAYERS_PER_TEAM

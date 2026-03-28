@@ -28,6 +28,7 @@ type LetterHiveLiveViewProps = {
   onCellSelect?: (index: number) => void
   selectedCellIndex?: number | null
   questionOverlay?: ReactNode
+  suppressDefaultQuestionOverlay?: boolean
   sidePanel?: ReactNode
 }
 
@@ -228,6 +229,7 @@ export function LetterHiveLiveView({
   onCellSelect,
   selectedCellIndex,
   questionOverlay,
+  suppressDefaultQuestionOverlay = false,
   sidePanel,
 }: LetterHiveLiveViewProps) {
   const [isHovered, setIsHovered] = useState(false)
@@ -506,7 +508,7 @@ export function LetterHiveLiveView({
       </div>
 
       {questionOverlay ??
-        (currentPrompt ? (
+        (!suppressDefaultQuestionOverlay && currentPrompt ? (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(5px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 110 }}>
             <div style={{ background: "white", padding: "40px 30px", borderRadius: "25px", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", minWidth: 320 }}>
               <h3 style={{ marginBottom: 24, fontSize: "1.3rem", color: "#2c3e50", lineHeight: 1.9 }}>

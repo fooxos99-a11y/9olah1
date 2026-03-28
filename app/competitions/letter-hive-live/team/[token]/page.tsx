@@ -393,21 +393,21 @@ export default function LetterHiveLiveTeamPage() {
 
             {isPlayerInvite ? (
               <div className="space-y-3">
-                <label className="block text-sm font-bold text-[#1f1147]">اختر اللون</label>
+                <label className="block text-sm font-bold text-[#1f1147]">اختر الفريق</label>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
                     onClick={() => setSelectedColor("team_a")}
                     className={`h-12 rounded-[1.35rem] border px-4 text-sm font-black transition ${selectedColor === "team_a" ? "border-[#df103a] bg-[linear-gradient(135deg,#df103a_0%,#be123c_100%)] text-white shadow-[0_10px_24px_rgba(223,16,58,0.22)]" : "border-[#df103a]/20 bg-[linear-gradient(135deg,rgba(223,16,58,0.08)_0%,rgba(255,255,255,0.92)_100%)] text-[#b91c1c]"}`}
                   >
-                    اللون الأحمر
+                    الفريق 2
                   </button>
                   <button
                     type="button"
                     onClick={() => setSelectedColor("team_b")}
                     className={`h-12 rounded-[1.35rem] border px-4 text-sm font-black transition ${selectedColor === "team_b" ? "border-[#14b8a6] bg-[linear-gradient(135deg,#14b8a6_0%,#0f766e_100%)] text-white shadow-[0_10px_24px_rgba(20,184,166,0.24)]" : "border-[#14b8a6]/20 bg-[linear-gradient(135deg,rgba(20,184,166,0.12)_0%,rgba(255,255,255,0.92)_100%)] text-[#0f766e]"}`}
                   >
-                    اللون التركوازي
+                    الفريق 1
                   </button>
                 </div>
               </div>
@@ -447,6 +447,7 @@ export default function LetterHiveLiveTeamPage() {
       buzzing={buzzing}
       buzzButtonLabel="الزر"
       buzzDisabled={buzzing || !match?.isOpen || !match?.buzzEnabled || !questionHasStarted || Boolean(match?.firstBuzzSide) || match?.status === "finished"}
+      suppressDefaultQuestionOverlay
       questionOverlay={
         match?.status === "waiting" ? (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.36)", backdropFilter: "blur(5px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 110, padding: "16px" }}>

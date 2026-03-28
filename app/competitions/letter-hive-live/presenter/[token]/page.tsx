@@ -75,7 +75,7 @@ function PlayerLinkCard({
   onCopy: () => void
 }) {
   const joined = Boolean(playerName && playerColor)
-  const colorLabel = playerColor === "team_a" ? "الأحمر" : playerColor === "team_b" ? "التركوازي" : null
+  const colorLabel = playerColor === "team_a" ? "الفريق 2" : playerColor === "team_b" ? "الفريق 1" : null
 
   return (
     <div className="rounded-[1.8rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(248,244,255,0.9)_100%)] p-4 text-right shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
@@ -583,6 +583,7 @@ export default function LetterHiveLivePresenterPage() {
       error={error}
       onCellSelect={canSelectBoardCell ? handleSelectCell : undefined}
       selectedCellIndex={selectedCellIndex}
+      suppressDefaultQuestionOverlay
       questionOverlay={
         match?.status === "waiting" ? (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.36)", backdropFilter: "blur(5px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 110, padding: "16px" }}>
@@ -661,13 +662,13 @@ export default function LetterHiveLivePresenterPage() {
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                     <div className="rounded-[1.4rem] border border-[#df103a]/15 bg-[linear-gradient(135deg,rgba(223,16,58,0.1)_0%,rgba(255,255,255,0.95)_100%)] px-4 py-3 text-right shadow-[0_10px_24px_rgba(223,16,58,0.08)]">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-black text-[#9f1239]">اللون الأحمر</span>
+                        <span className="text-sm font-black text-[#9f1239]">الفريق 2</span>
                         <span className="rounded-full bg-[#df103a] px-3 py-1 text-sm font-black text-white">{playerColorCounts.teamAPlayers}/{requiredPlayersPerTeam}</span>
                       </div>
                     </div>
                     <div className="rounded-[1.4rem] border border-[#14b8a6]/20 bg-[linear-gradient(135deg,rgba(20,184,166,0.14)_0%,rgba(255,255,255,0.95)_100%)] px-4 py-3 text-right shadow-[0_10px_24px_rgba(20,184,166,0.09)]">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-black text-[#0f766e]">اللون التركوازي</span>
+                        <span className="text-sm font-black text-[#0f766e]">الفريق 1</span>
                         <span className="rounded-full bg-[#14b8a6] px-3 py-1 text-sm font-black text-white">{playerColorCounts.teamBPlayers}/{requiredPlayersPerTeam}</span>
                       </div>
                     </div>
