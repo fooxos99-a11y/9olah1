@@ -60,8 +60,6 @@ type PreloadedQuestion = {
 
 type MatchBroadcastPatch = Partial<Pick<PresenterMatch, "status" | "isOpen" | "buzzEnabled" | "firstBuzzSide" | "firstBuzzedAt" | "firstBuzzPlayerName" | "teamAName" | "teamBName" | "teamAScore" | "teamBScore" | "requiresPresenter" | "controllerSide" | "roundTarget" | "buzzOwnerTimerSeconds" | "buzzOpponentTimerSeconds" | "currentPrompt" | "currentAnswer" | "currentLetter" | "currentCellIndex" | "currentPromptStartedAt" | "showAnswer" | "updatedAt" | "playerSlots" | "boardLetters" | "claimedCells">>
 
-const LIVE_SYNC_INTERVAL_MS = 2000
-
 function PlayerLinkCard({
   title,
   href,
@@ -126,7 +124,6 @@ export default function LetterHiveLivePresenterPage() {
   const [selectedCellIndex, setSelectedCellIndex] = useState<number | null>(null)
   const [questionsByLetter, setQuestionsByLetter] = useState<Record<string, PreloadedQuestion[]>>({})
   const [serverTimeOffsetMs, setServerTimeOffsetMs] = useState(0)
-  const [localBuzzPause, setLocalBuzzPause] = useState(false)
   const [latestVisiblePromptText, setLatestVisiblePromptText] = useState("")
   const [frozenPromptText, setFrozenPromptText] = useState("")
   const latestVisiblePromptTextRef = useRef("")
@@ -245,11 +242,23 @@ export default function LetterHiveLivePresenterPage() {
       return
     }
 
-    const intervalId = window.setInterval(() => {
-      void fetchMatch(false)
-    }, LIVE_SYNC_INTERVAL_MS)
+    const refreshMatch = () => {
+      if (document.visibilityState === "visible") {
+        void fetchMatch(false)
+      }
+    }
 
-    return () => window.clearInterval(intervalId)
+    const handleVisibilityChange = () => {
+      refreshMatch()
+    }
+
+    window.addEventListener("online", refreshMatch)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener("online", refreshMatch)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
   }, [token])
 
   useEffect(() => {
@@ -283,7 +292,11 @@ export default function LetterHiveLivePresenterPage() {
           void fetchMatch(false)
         },
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          void fetchMatch(false)
+        }
+      })
 
     liveChannelRef.current = channel
 
@@ -437,10 +450,6 @@ export default function LetterHiveLivePresenterPage() {
   }, [frozenPromptText, latestVisiblePromptText, match?.firstBuzzSide])
 
   useEffect(() => {
-    setLocalBuzzPause(false)
-  }, [match?.currentPrompt, match?.currentCellIndex, match?.updatedAt])
-
-  useEffect(() => {
     if (!match || match.requiresPresenter) {
       setShowFirstCenterHint(false)
       return
@@ -569,7 +578,6 @@ export default function LetterHiveLivePresenterPage() {
     }
 
     try {
-      setLocalBuzzPause(true)
       setBuzzing(true)
       setError("")
 
@@ -591,10 +599,7 @@ export default function LetterHiveLivePresenterPage() {
       setError("")
       void broadcastMatchUpdate(buildBroadcastMatchPatch(data.match), data?.serverNow)
     } catch (requestError) {
-      const refreshedMatch = await fetchMatch(false)
-      if (!refreshedMatch?.firstBuzzSide) {
-        setLocalBuzzPause(false)
-      }
+      await fetchMatch(false)
       setError(requestError instanceof Error ? requestError.message : "تعذر تسجيل السبق")
     } finally {
       setBuzzing(false)
@@ -879,7 +884,7 @@ export default function LetterHiveLivePresenterPage() {
                       key={`live:${match.currentCellIndex ?? "none"}:${match.currentPrompt ?? ""}`}
                       text={match.currentPrompt}
                       ready={questionHasStarted}
-                      paused={questionHasStarted && (localBuzzPause || Boolean(match.firstBuzzSide))}
+                      paused={questionHasStarted && Boolean(match.firstBuzzSide)}
                       onVisibleTextChange={handleVisiblePromptTextChange}
                     />
                   )}

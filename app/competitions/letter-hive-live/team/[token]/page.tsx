@@ -49,8 +49,6 @@ type TeamMatch = {
   claimedCells: Array<TeamRole | null>
 }
 
-const LIVE_SYNC_INTERVAL_MS = 2000
-
 export default function LetterHiveLiveTeamPage() {
   const params = useParams<{ token: string }>()
   const searchParams = useSearchParams()
@@ -64,7 +62,6 @@ export default function LetterHiveLiveTeamPage() {
   const [savingName, setSavingName] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [buzzing, setBuzzing] = useState(false)
-  const [localBuzzPause, setLocalBuzzPause] = useState(false)
   const [latestVisiblePromptText, setLatestVisiblePromptText] = useState("")
   const [frozenPromptText, setFrozenPromptText] = useState("")
   const latestVisiblePromptTextRef = useRef("")
@@ -172,11 +169,23 @@ export default function LetterHiveLiveTeamPage() {
       return
     }
 
-    const intervalId = window.setInterval(() => {
-      void fetchMatch(false)
-    }, LIVE_SYNC_INTERVAL_MS)
+    const refreshMatch = () => {
+      if (document.visibilityState === "visible") {
+        void fetchMatch(false)
+      }
+    }
 
-    return () => window.clearInterval(intervalId)
+    const handleVisibilityChange = () => {
+      refreshMatch()
+    }
+
+    window.addEventListener("online", refreshMatch)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener("online", refreshMatch)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
   }, [playerSlot, token])
 
   useEffect(() => {
@@ -210,7 +219,11 @@ export default function LetterHiveLiveTeamPage() {
           void fetchMatch(false)
         },
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          void fetchMatch(false)
+        }
+      })
 
     liveChannelRef.current = channel
 
@@ -350,24 +363,6 @@ export default function LetterHiveLiveTeamPage() {
     }
   }, [frozenPromptText, latestVisiblePromptText, match?.firstBuzzSide])
 
-  useEffect(() => {
-    setLocalBuzzPause(false)
-  }, [match?.currentPrompt, match?.currentCellIndex, match?.updatedAt])
-
-  useEffect(() => {
-    if (!localBuzzPause) {
-      return
-    }
-
-    if (!match?.firstBuzzSide || (effectiveRole !== "team_a" && effectiveRole !== "team_b")) {
-      return
-    }
-
-    if (match.firstBuzzSide !== effectiveRole) {
-      setLocalBuzzPause(false)
-    }
-  }, [effectiveRole, localBuzzPause, match?.firstBuzzSide])
-
   const handleSaveTeamName = async () => {
     try {
       setSavingName(true)
@@ -407,7 +402,6 @@ export default function LetterHiveLiveTeamPage() {
     }
 
     try {
-      setLocalBuzzPause(true)
       setBuzzing(true)
       setError("")
 
@@ -429,10 +423,7 @@ export default function LetterHiveLiveTeamPage() {
       setError("")
       void broadcastMatchUpdate(buildBroadcastMatchPatch(data.match), data?.serverNow)
     } catch (requestError) {
-      const refreshedMatch = await fetchMatch(false)
-      if (!refreshedMatch?.firstBuzzSide) {
-        setLocalBuzzPause(false)
-      }
+      await fetchMatch(false)
       setError(requestError instanceof Error ? requestError.message : "تعذر تسجيل السبق")
     } finally {
       setBuzzing(false)
@@ -716,7 +707,7 @@ export default function LetterHiveLiveTeamPage() {
                       key={`live:${match.currentCellIndex ?? "none"}:${match.currentPrompt ?? ""}`}
                       text={match.currentPrompt}
                       ready={questionHasStarted}
-                      paused={questionHasStarted && (localBuzzPause || Boolean(match.firstBuzzSide))}
+                      paused={questionHasStarted && Boolean(match.firstBuzzSide)}
                       onVisibleTextChange={handleVisiblePromptTextChange}
                     />
                   )}

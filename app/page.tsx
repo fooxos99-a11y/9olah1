@@ -1,5 +1,3 @@
-"use client"
-
 import Link from "next/link"
 import { ArrowLeft, Sparkles } from "lucide-react"
 import { Header } from "@/components/header"
