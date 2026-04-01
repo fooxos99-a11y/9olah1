@@ -352,9 +352,9 @@ export default function LetterHiveLivePresenterPage() {
     serverTimeOffsetMs,
   )
   const shouldResumePrompt = Boolean(match?.firstBuzzSide) && buzzTimerState.phase === "opponent"
+  const shouldShowFullPrompt = Boolean(match?.firstBuzzSide) && buzzTimerState.phase === null
   const frozenPromptDisplayText = frozenPromptText || latestVisiblePromptText || latestVisiblePromptTextRef.current
   const frozenPromptVisibleCount = useMemo(() => splitIntoGraphemes(frozenPromptDisplayText).length, [frozenPromptDisplayText])
-  const activeQuestionSide = match?.firstBuzzSide && buzzTimerState.activeSide ? buzzTimerState.activeSide : match?.controllerSide ?? null
 
   useEffect(() => {
     setRoundTargetDraft(match?.roundTarget || DEFAULT_LETTER_HIVE_LIVE_ROUND_TARGET)
@@ -660,7 +660,7 @@ export default function LetterHiveLivePresenterPage() {
   const requiredPlayersPerTeam = match?.playersPerTeam ?? 2
   const canStartGame = playerColorCounts.teamAPlayers === requiredPlayersPerTeam && playerColorCounts.teamBPlayers === requiredPlayersPerTeam
   const canSelectBoardCell = !actionLoading && !showFirstCenterHint && !match?.currentPrompt && match?.currentCellIndex === null && selectedCellIndex === null && (Boolean(match?.requiresPresenter) || isNoPresenterController)
-  const canManageCurrentQuestion = Boolean(match?.requiresPresenter) || activeQuestionSide === "team_b"
+  const canManageCurrentQuestion = Boolean(match?.requiresPresenter) || match?.controllerSide === "team_b"
 
   if (loading) {
     return <SiteLoader fullScreen />
@@ -868,7 +868,9 @@ export default function LetterHiveLivePresenterPage() {
                   {match.currentLetter ? `حرف ${match.currentLetter}` : "سؤال البطولة"}
                 </div>
                 <h3 style={{ marginBottom: 18, fontSize: "1.3rem", color: "#2c3e50", lineHeight: 1.9, fontWeight: 900 }}>
-                  {shouldResumePrompt ? (
+                  {shouldShowFullPrompt ? (
+                    match.currentPrompt
+                  ) : shouldResumePrompt ? (
                     <AnimatedQuestionText
                       key={`resume:${match.currentCellIndex ?? "none"}:${match.firstBuzzedAt ?? "none"}`}
                       text={match.currentPrompt}

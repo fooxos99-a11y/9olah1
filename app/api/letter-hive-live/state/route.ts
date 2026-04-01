@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { notFoundResponse } from "@/lib/auth/guards"
-import { canControlLetterHiveLiveMatch, isLetterHiveLiveCaptainSlot, normalizeLetterHiveLivePlayerSlots, normalizeMatchMetadata, resolveLetterHiveLiveBuzzOpponentTimerSeconds, resolveLetterHiveLiveBuzzOwnerTimerSeconds, resolveLetterHiveLivePlayerSlot, resolveLetterHiveLiveRequiresPresenter, type LetterHiveLiveMatchRow, resolveMatchRole, sanitizeMatchForClient, sanitizeTeamName } from "@/lib/letter-hive-live"
+import { canControlLetterHiveLiveMatch, isLetterHiveLiveCaptainSlot, normalizeLetterHiveLivePlayerSlots, normalizeMatchMetadata, resolveLetterHiveLivePlayerSlot, resolveLetterHiveLiveRequiresPresenter, type LetterHiveLiveMatchRow, resolveMatchRole, sanitizeMatchForClient, sanitizeTeamName } from "@/lib/letter-hive-live"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 const ALLOWED_PATCH_KEYS = [
@@ -38,31 +38,6 @@ async function findMatchByToken(token: string) {
   return data as LetterHiveLiveMatchRow | null
 }
 
-function resolveActiveBuzzSide(match: LetterHiveLiveMatchRow) {
-  if (!match.first_buzz_side || !match.first_buzzed_at) {
-    return null
-  }
-
-  const firstBuzzAtMs = Date.parse(match.first_buzzed_at)
-  if (!Number.isFinite(firstBuzzAtMs)) {
-    return null
-  }
-
-  const ownerPhaseEndsAtMs = firstBuzzAtMs + resolveLetterHiveLiveBuzzOwnerTimerSeconds(match.metadata) * 1000
-  const opponentPhaseEndsAtMs = ownerPhaseEndsAtMs + resolveLetterHiveLiveBuzzOpponentTimerSeconds(match.metadata) * 1000
-  const nowMs = Date.now()
-
-  if (nowMs < ownerPhaseEndsAtMs) {
-    return match.first_buzz_side
-  }
-
-  if (nowMs < opponentPhaseEndsAtMs) {
-    return match.first_buzz_side === "team_a" ? "team_b" : "team_a"
-  }
-
-  return null
-}
-
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
@@ -87,12 +62,7 @@ export async function PATCH(request: NextRequest) {
         ? "team_b"
         : role
 
-    const activeBuzzSide = !requiresPresenter ? resolveActiveBuzzSide(match) : null
-    const canManageCurrentQuestion = effectiveRole === "team_a" || effectiveRole === "team_b"
-      ? activeBuzzSide === effectiveRole
-      : false
-
-    if (!canControlLetterHiveLiveMatch(match.metadata, effectiveRole || "player") && !canManageCurrentQuestion) {
+    if (!canControlLetterHiveLiveMatch(match.metadata, effectiveRole || "player")) {
       return NextResponse.json({ error: "هذا الرابط لا يملك صلاحية إدارة السؤال" }, { status: 403 })
     }
 

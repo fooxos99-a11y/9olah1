@@ -316,11 +316,11 @@ export default function LetterHiveLiveTeamPage() {
     serverTimeOffsetMs,
   )
   const shouldResumePrompt = Boolean(match?.firstBuzzSide) && buzzTimerState.phase === "opponent"
+  const shouldShowFullPrompt = Boolean(match?.firstBuzzSide) && buzzTimerState.phase === null
   const frozenPromptDisplayText = frozenPromptText || latestVisiblePromptText || latestVisiblePromptTextRef.current
   const frozenPromptVisibleCount = useMemo(() => splitIntoGraphemes(frozenPromptDisplayText).length, [frozenPromptDisplayText])
-  const activeQuestionSide = match?.firstBuzzSide && buzzTimerState.activeSide ? buzzTimerState.activeSide : match?.controllerSide ?? null
   const canManageCurrentQuestion = effectiveRole === "team_a" || effectiveRole === "team_b"
-    ? !match?.requiresPresenter && activeQuestionSide === effectiveRole && isCaptain
+    ? !match?.requiresPresenter && match?.controllerSide === effectiveRole && isCaptain
     : false
 
   useEffect(() => {
@@ -705,7 +705,9 @@ export default function LetterHiveLiveTeamPage() {
                   {match.currentLetter ? `حرف ${match.currentLetter}` : "سؤال البطولة"}
                 </div>
                 <h3 style={{ marginBottom: 18, fontSize: "1.3rem", color: "#2c3e50", lineHeight: 1.9, fontWeight: 900 }}>
-                  {shouldResumePrompt ? (
+                  {shouldShowFullPrompt ? (
+                    match.currentPrompt
+                  ) : shouldResumePrompt ? (
                     <AnimatedQuestionText
                       key={`resume:${match.currentCellIndex ?? "none"}:${match.firstBuzzedAt ?? "none"}`}
                       text={match.currentPrompt}
