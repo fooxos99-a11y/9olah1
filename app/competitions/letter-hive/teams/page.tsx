@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowLeft } from "lucide-react"
 import { GameEntryShell } from "@/components/games/game-entry-shell"
+import { LetterHiveLocalEntry } from "@/app/competitions/letter-hive/teams"
 
 const LETTER_HIVE_BG_PATTERN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='156' viewBox='0 0 180 156'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='0.46' stroke-width='1.8'%3E%3Cpolygon points='45,4 83,26 83,70 45,92 7,70 7,26'/%3E%3Cpolygon points='135,4 173,26 173,70 135,92 97,70 97,26'/%3E%3Cpolygon points='90,64 128,86 128,130 90,152 52,130 52,86'/%3E%3C/g%3E%3C/svg%3E\")"
 
@@ -48,41 +48,7 @@ export default function LetterHiveTeams() {
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-5 md:px-2">
-        <div className="space-y-4">
-          <div className="space-y-3">
-            <div className="text-sm font-bold text-[#1f1147] md:text-base">اسم الفريق الأول</div>
-            <input
-              type="text"
-              value={teamNames[0]}
-              onChange={(e) => handleChange(0, e.target.value)}
-              required
-              placeholder="اكتب اسم الفريق الأول"
-              className="h-14 w-full rounded-2xl border border-[#d8c9fb]/80 bg-transparent px-4 text-right text-[#3f2a76] placeholder:text-[#8f7fb1] outline-none transition focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
-            />
-          </div>
-
-          <div className="space-y-3">
-            <div className="text-sm font-bold text-[#1f1147] md:text-base">اسم الفريق الثاني</div>
-            <input
-              type="text"
-              value={teamNames[1]}
-              onChange={(e) => handleChange(1, e.target.value)}
-              required
-              placeholder="اكتب اسم الفريق الثاني"
-              className="h-14 w-full rounded-2xl border border-[#d8c9fb]/80 bg-transparent px-4 text-right text-[#3f2a76] placeholder:text-[#8f7fb1] outline-none transition focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] px-6 text-lg font-black text-white transition hover:bg-[#6d28d9]"
-        >
-          ابدأ الجولة
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-      </form>
+      <LetterHiveLocalEntry teamNames={teamNames} onChange={handleChange} onSubmit={handleSubmit} />
     </GameEntryShell>
   )
 }

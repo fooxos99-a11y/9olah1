@@ -6,8 +6,9 @@ export async function getNextQuestionForAccount(accountNumber: number, letter: s
 
   // 1. جلب جميع الأسئلة المرتبطة بالحرف (مرتبة)
   const { data: questions, error: qError } = await supabase
-    .from("letter_hive_questions")
+    .from("letter_hive_live_questions")
     .select("id,question,answer")
+    .eq("is_active", true)
     .eq("letter", letter)
     .order("id", { ascending: true });
   if (qError || !questions || questions.length === 0) return null;

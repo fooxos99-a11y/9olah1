@@ -25,13 +25,16 @@ export async function POST(request: Request) {
     const teamName = normalizeInput(body?.teamName)
     const playerOneName = normalizeInput(body?.playerOneName)
     const playerTwoName = normalizeInput(body?.playerTwoName)
+    const playersPerTeam = Number(body?.playersPerTeam)
     const session = await getSessionFromCookieHeader(request.headers.get("cookie"))
 
     if (!session) {
       return NextResponse.json({ error: "يجب تسجيل الدخول أولًا لتسجيل الفريق" }, { status: 401 })
     }
 
-    if (!teamName || !playerOneName || !playerTwoName) {
+    const requiresSecondPlayer = Number.isFinite(playersPerTeam) ? playersPerTeam > 1 : true
+
+    if (!teamName || !playerOneName || (requiresSecondPlayer && !playerTwoName)) {
       return NextResponse.json({ error: "جميع الحقول مطلوبة" }, { status: 400 })
     }
 
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
       .insert({
         team_name: teamName,
         player_one_name: playerOneName,
-        player_two_name: playerTwoName,
+        player_two_name: requiresSecondPlayer ? playerTwoName : "",
         submitted_by_user_id: session.id,
         submitted_by_name: session.name || null,
         status: "new",

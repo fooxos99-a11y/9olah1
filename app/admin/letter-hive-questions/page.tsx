@@ -10,6 +10,7 @@ import { useAdminAuth } from "@/hooks/use-admin-auth"
 const ARABIC_LETTERS = [
   "أ","ب","ت","ث","ج","ح","خ","د","ذ","ر","ز","س","ش","ص","ض","ط","ظ","ع","غ","ف","ق","ك","ل","م","ن","هـ","و","ي"
 ];
+const LETTER_HIVE_SHARED_TABLE = "letter_hive_live_questions";
 
 export default function LetterHiveQuestionsAdmin() {
   const { isLoading: authLoading, isVerified: authVerified } = useAdminAuth("إدارة الألعاب");
@@ -29,7 +30,10 @@ export default function LetterHiveQuestionsAdmin() {
 
   async function fetchQuestions() {
     setLoading(true);
-    const { data, error } = await supabase.from("letter_hive_questions").select();
+    const { data, error } = await supabase
+      .from(LETTER_HIVE_SHARED_TABLE)
+      .select("letter,question,answer")
+      .eq("is_active", true);
     if (!error && data) {
       const grouped: Record<string, {question: string, answer: string}[]> = {};
       for (const row of data) {
@@ -43,10 +47,11 @@ export default function LetterHiveQuestionsAdmin() {
 
   async function addQuestion() {
     if (!selectedLetter || !newQuestion || !newAnswer) return;
-    const { error } = await supabase.from("letter_hive_questions").insert({ 
+    const { error } = await supabase.from(LETTER_HIVE_SHARED_TABLE).insert({ 
         letter: selectedLetter, 
         question: newQuestion, 
-        answer: newAnswer 
+      answer: newAnswer,
+      is_active: true,
     });
     if (!error) {
       setNewQuestion("");
@@ -56,7 +61,7 @@ export default function LetterHiveQuestionsAdmin() {
   }
 
   async function deleteQuestion(letter: string, question: string) {
-    await supabase.from("letter_hive_questions").delete().eq("letter", letter).eq("question", question);
+    await supabase.from(LETTER_HIVE_SHARED_TABLE).delete().eq("letter", letter).eq("question", question);
     fetchQuestions();
   }
 

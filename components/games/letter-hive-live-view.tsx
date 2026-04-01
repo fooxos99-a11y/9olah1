@@ -27,6 +27,7 @@ type LetterHiveLiveViewProps = {
   buzzButtonLabel?: string
   onCellSelect?: (index: number) => void
   selectedCellIndex?: number | null
+  selectableCellIndexes?: number[]
   questionOverlay?: ReactNode
   suppressDefaultQuestionOverlay?: boolean
   sidePanel?: ReactNode
@@ -58,7 +59,7 @@ const TEAM_TIMER_STYLES = {
   },
 } as const
 
-function splitIntoGraphemes(value: string) {
+export function splitIntoGraphemes(value: string) {
   if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
     const segmenter = new Intl.Segmenter("ar", { granularity: "grapheme" })
 
@@ -81,9 +82,31 @@ export function resolveQuestionStartTimeMs(updatedAt: string | null | undefined,
   return serverUpdatedAtMs + QUESTION_SYNC_LEAD_MS - serverTimeOffsetMs
 }
 
-export function useSynchronizedQuestionStart(isActive: boolean, updatedAt: string | null | undefined, serverTimeOffsetMs = 0) {
-  const startAtMs = resolveQuestionStartTimeMs(updatedAt, serverTimeOffsetMs)
+export function useSynchronizedQuestionStart(isActive: boolean, updatedAt: string | null | undefined, serverTimeOffsetMs = 0, syncKey?: string | number | null) {
+  const [latchedUpdatedAt, setLatchedUpdatedAt] = useState<string | null>(updatedAt ?? null)
   const [refreshToken, setRefreshToken] = useState(0)
+  const activeSyncKeyRef = useRef<string | number | null>(null)
+
+  useEffect(() => {
+    if (!isActive) {
+      activeSyncKeyRef.current = null
+      setLatchedUpdatedAt(updatedAt ?? null)
+      return
+    }
+
+    const nextSyncKey = syncKey ?? "__active_question__"
+    if (activeSyncKeyRef.current !== nextSyncKey) {
+      activeSyncKeyRef.current = nextSyncKey
+      setLatchedUpdatedAt(updatedAt ?? null)
+      return
+    }
+
+    if (!latchedUpdatedAt && updatedAt) {
+      setLatchedUpdatedAt(updatedAt)
+    }
+  }, [isActive, latchedUpdatedAt, syncKey, updatedAt])
+
+  const startAtMs = resolveQuestionStartTimeMs(latchedUpdatedAt, serverTimeOffsetMs)
 
   const hasStarted = !isActive
     ? true
@@ -121,9 +144,10 @@ export function useSynchronizedQuestionStart(isActive: boolean, updatedAt: strin
   }
 }
 
-export function AnimatedQuestionText({ text, paused = false, ready = true }: { text: string; paused?: boolean; ready?: boolean }) {
+export function AnimatedQuestionText({ text, paused = false, ready = true, initialVisibleCount = 0, onVisibleTextChange }: { text: string; paused?: boolean; ready?: boolean; initialVisibleCount?: number; onVisibleTextChange?: (value: string) => void }) {
   const graphemes = splitIntoGraphemes(text)
-  const [visibleCount, setVisibleCount] = useState(0)
+  const [visibleCount, setVisibleCount] = useState(initialVisibleCount)
+  const [pauseLatched, setPauseLatched] = useState(paused)
   const totalDuration = Math.min(
     QUESTION_REVEAL_MAX_MS,
     Math.max(QUESTION_REVEAL_MIN_MS, graphemes.length * QUESTION_REVEAL_MS_PER_CHAR),
@@ -131,11 +155,20 @@ export function AnimatedQuestionText({ text, paused = false, ready = true }: { t
   const perCharDelay = graphemes.length > 0 ? totalDuration / graphemes.length : QUESTION_REVEAL_MIN_MS
 
   useEffect(() => {
-    setVisibleCount(0)
-  }, [text])
+    setVisibleCount(initialVisibleCount)
+    setPauseLatched(paused)
+  }, [initialVisibleCount, paused, text])
 
   useEffect(() => {
-    if (!ready || paused || !graphemes.length || visibleCount >= graphemes.length) {
+    if (paused) {
+      setPauseLatched(true)
+    }
+  }, [paused])
+
+  const effectivePaused = paused || pauseLatched
+
+  useEffect(() => {
+    if (!ready || effectivePaused || !graphemes.length || visibleCount >= graphemes.length) {
       return
     }
 
@@ -146,10 +179,14 @@ export function AnimatedQuestionText({ text, paused = false, ready = true }: { t
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [graphemes.length, paused, perCharDelay, ready, visibleCount])
+  }, [effectivePaused, graphemes.length, perCharDelay, ready, visibleCount])
 
   const visibleText = graphemes.slice(0, visibleCount).join("")
   const isAnimating = visibleCount < graphemes.length
+
+  useEffect(() => {
+    onVisibleTextChange?.(visibleText)
+  }, [onVisibleTextChange, visibleText])
 
   return (
     <span style={{ display: "inline" }}>
@@ -192,7 +229,7 @@ function TeamScoreCard({ name, score, color, side, roundTarget }: { name: string
           boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
         }}
       >
-        {side === "left" ? "الفريق الثاني" : "الفريق الأول"}
+        {side === "left" ? "الفريق 1" : "الفريق 2"}
       </div>
       <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#444", marginTop: "10px" }}>{name}</div>
       <div
@@ -206,8 +243,6 @@ function TeamScoreCard({ name, score, color, side, roundTarget }: { name: string
       >
         {score}
       </div>
-      <div style={{ fontSize: "0.9rem", color: "#888", fontWeight: "bold" }}>جولة</div>
-      <div style={{ fontSize: "0.82rem", color: "#6b7280", fontWeight: 800 }}>الهدف {roundTarget || 3}</div>
     </div>
   )
 }
@@ -231,6 +266,7 @@ export function LetterHiveLiveView({
   buzzButtonLabel,
   onCellSelect,
   selectedCellIndex,
+  selectableCellIndexes,
   questionOverlay,
   suppressDefaultQuestionOverlay = false,
   sidePanel,
@@ -239,6 +275,7 @@ export function LetterHiveLiveView({
   const [boardScale, setBoardScale] = useState(1)
   const [boardOffset, setBoardOffset] = useState({ x: 0, y: 0 })
   const [isPanningBoard, setIsPanningBoard] = useState(false)
+  const selectableIndexSet = selectableCellIndexes?.length ? new Set(selectableCellIndexes) : null
   const boardSelectionLocked = !onCellSelect || currentPrompt !== null || currentCellIndex !== null || selectedCellIndex !== null
 
   const boardViewportRef = useRef<HTMLDivElement | null>(null)
@@ -333,7 +370,7 @@ export function LetterHiveLiveView({
             : "rgba(124, 58, 237, 0.18)"
       const shadowFill = status === "team_a" ? "rgba(223,16,58,0.22)" : status === "team_b" ? "rgba(16,223,181,0.22)" : "rgba(44,62,80,0.08)"
       const glossFill = status ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.92)"
-      const canSelectCell = !isClaimed && !boardSelectionLocked
+      const canSelectCell = !isClaimed && !boardSelectionLocked && (!selectableIndexSet || selectableIndexSet.has(index))
 
       return (
         <g
@@ -480,10 +517,10 @@ export function LetterHiveLiveView({
               }}
             >
               <div style={{ position: "absolute", left: "0", top: "50%", transform: "translate(-98%, -50%)", zIndex: 4 }}>
-                <TeamScoreCard name={teamBName} score={teamBScore} color="#10dfb5" side="left" roundTarget={roundTarget} />
+                <TeamScoreCard name={teamAName} score={teamAScore} color="#df103a" side="left" roundTarget={roundTarget} />
               </div>
               <div style={{ position: "absolute", right: "0", top: "50%", transform: "translate(98%, -50%)", zIndex: 4 }}>
-                <TeamScoreCard name={teamAName} score={teamAScore} color="#df103a" side="right" roundTarget={roundTarget} />
+                <TeamScoreCard name={teamBName} score={teamBScore} color="#10dfb5" side="right" roundTarget={roundTarget} />
               </div>
               <svg viewBox="-70 -70 690 605" style={{ width: "100%", height: "auto", overflow: "visible" }}>
                 <foreignObject x="-80" y="-80" width="710" height="624">
@@ -625,6 +662,7 @@ export function useLetterHiveLiveBuzzTimer(
 export function LetterHiveLiveBuzzTimerCard({
   firstBuzzSide,
   firstBuzzedAt,
+  firstBuzzLabel,
   teamAName,
   teamBName,
   buzzOwnerTimerSeconds,
@@ -633,6 +671,7 @@ export function LetterHiveLiveBuzzTimerCard({
 }: {
   firstBuzzSide: ClaimedCell
   firstBuzzedAt: string | null | undefined
+  firstBuzzLabel?: string | null
   teamAName: string
   teamBName: string
   buzzOwnerTimerSeconds: number
@@ -663,21 +702,43 @@ export function LetterHiveLiveBuzzTimerCard({
         textAlign: "center",
         boxShadow: "0 18px 36px rgba(0,0,0,0.18)",
         minWidth: 240,
-        maxWidth: 340,
+        maxWidth: 360,
         width: "100%",
       }}
     >
-      <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "999px", background: timerStyle.subtle, border: `1px solid ${timerStyle.border}`, padding: "6px 12px", color: timerStyle.text, fontSize: "0.82rem", fontWeight: 900 }}>
+      {firstBuzzLabel ? (
+        <>
+          <div style={{ color: "#475569", fontSize: "0.82rem", fontWeight: 900 }}>
+            أول من ضغط الزر
+          </div>
+          <div
+            style={{
+              marginTop: "10px",
+              borderRadius: "999px",
+              background: firstBuzzSide === "team_a" ? "#df103a" : "#10dfb5",
+              border: firstBuzzSide === "team_a" ? "1px solid #df103a" : "1px solid #10dfb5",
+              padding: "8px 18px",
+              color: "#ffffff",
+              fontSize: "0.98rem",
+              fontWeight: 900,
+              lineHeight: 1.2,
+            }}
+          >
+            {firstBuzzLabel}
+          </div>
+        </>
+      ) : null}
+      <div style={{ color: timerStyle.text, fontSize: "0.82rem", fontWeight: 900, marginTop: firstBuzzLabel ? "14px" : 0 }}>
         {phaseLabel}
       </div>
       <div
         style={{
           marginTop: "10px",
           borderRadius: "999px",
-          background: timerStyle.subtle,
-          border: `1px solid ${timerStyle.border}`,
+          background: timerStyle.solid,
+          border: `1px solid ${timerStyle.solid}`,
           padding: "8px 18px",
-          color: timerStyle.text,
+          color: "#ffffff",
           fontSize: "0.98rem",
           fontWeight: 900,
           lineHeight: 1.2,

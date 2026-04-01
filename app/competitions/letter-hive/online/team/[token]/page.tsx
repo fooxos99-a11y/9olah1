@@ -1,0 +1,1 @@
+export { default } from "../../../../letter-hive-live/team/[token]/page"

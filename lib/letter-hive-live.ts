@@ -184,19 +184,23 @@ export function groupLetterHiveLivePlayerNamesByColor(playerSlots: LetterHiveLiv
   }
 }
 
-export function buildMatchLinks(origin: string, match: Pick<LetterHiveLiveMatchRow, "presenter_token" | "team_a_token" | "team_b_token" | "metadata">) {
+export function buildMatchLinks(
+  origin: string,
+  match: Pick<LetterHiveLiveMatchRow, "presenter_token" | "team_a_token" | "team_b_token" | "metadata">,
+  routeBase = "/competitions/letter-hive-live",
+) {
   const activePlayerSlotCount = getLetterHiveLiveActivePlayerSlotCount(match.metadata)
 
   return {
-    presenter: `${origin}/competitions/letter-hive-live/presenter/${match.presenter_token}`,
-    teamA: `${origin}/competitions/letter-hive-live/team/${match.team_a_token}`,
-    teamB: `${origin}/competitions/letter-hive-live/team/${match.team_b_token}`,
+    presenter: `${origin}${routeBase}/presenter/${match.presenter_token}`,
+    teamA: `${origin}${routeBase}/team/${match.team_a_token}`,
+    teamB: `${origin}${routeBase}/team/${match.team_b_token}`,
     players: Array.from({ length: activePlayerSlotCount }, (_, index) => {
       const slot = index + 1
 
       return {
         slot,
-        href: `${origin}/competitions/letter-hive-live/team/${match.presenter_token}?slot=${slot}`,
+        href: `${origin}${routeBase}/team/${match.presenter_token}?slot=${slot}`,
       }
     }),
   }
@@ -265,6 +269,60 @@ export function resolveLetterHiveLiveBuzzOpponentTimerSeconds(metadata: unknown)
   )
 }
 
+export function resolveLetterHiveLiveRequiresPresenter(metadata: unknown) {
+  const normalizedMetadata = normalizeMatchMetadata(metadata)
+
+  if (normalizedMetadata.requiresPresenter === false) {
+    return false
+  }
+
+  return true
+}
+
+export function resolveLetterHiveLiveControllerSide(metadata: unknown): LetterHiveLiveTeamSide {
+  const normalizedMetadata = normalizeMatchMetadata(metadata)
+
+  return normalizedMetadata.controllerSide === "team_a" ? "team_a" : "team_b"
+}
+
+export function resolveLetterHiveLiveCaptainSlot(metadata: unknown, side: LetterHiveLiveTeamSide) {
+  const playerSlots = normalizeLetterHiveLivePlayerSlots(metadata)
+  const captainSlot = playerSlots.find((playerSlot) => playerSlot.color === side && playerSlot.name)
+
+  return captainSlot?.slot ?? null
+}
+
+export function isLetterHiveLiveCaptainSlot(metadata: unknown, side: LetterHiveLiveTeamSide, playerSlot: number | null | undefined) {
+  if (!playerSlot) {
+    return false
+  }
+
+  return resolveLetterHiveLiveCaptainSlot(metadata, side) === playerSlot
+}
+
+export function canControlLetterHiveLiveMatch(metadata: unknown, role: LetterHiveLiveRole) {
+  if (role !== "presenter" && role !== "team_a" && role !== "team_b") {
+    return false
+  }
+
+  if (resolveLetterHiveLiveRequiresPresenter(metadata)) {
+    return role === "presenter"
+  }
+
+  if (role === "presenter") {
+    return resolveLetterHiveLiveControllerSide(metadata) === "team_b"
+  }
+
+  return resolveLetterHiveLiveControllerSide(metadata) === role
+}
+
+export function resolveLetterHiveLiveQuestionStartedAt(metadata: unknown) {
+  const normalizedMetadata = normalizeMatchMetadata(metadata)
+  const value = sanitizeTeamName(normalizedMetadata.questionStartedAt)
+
+  return value || null
+}
+
 function getClaimedCellNeighbors(index: number) {
   const row = Math.floor(index / 5)
   const col = index % 5
@@ -321,6 +379,9 @@ export function sanitizeMatchForClient(match: LetterHiveLiveMatchRow, role: Lett
   const roundTarget = resolveLetterHiveLiveRoundTarget(match.metadata)
   const buzzOwnerTimerSeconds = resolveLetterHiveLiveBuzzOwnerTimerSeconds(match.metadata)
   const buzzOpponentTimerSeconds = resolveLetterHiveLiveBuzzOpponentTimerSeconds(match.metadata)
+  const requiresPresenter = resolveLetterHiveLiveRequiresPresenter(match.metadata)
+  const controllerSide = resolveLetterHiveLiveControllerSide(match.metadata)
+  const currentPromptStartedAt = resolveLetterHiveLiveQuestionStartedAt(match.metadata)
   const playerSlots = normalizeLetterHiveLivePlayerSlots(match.metadata)
   const groupedPlayerNames = groupLetterHiveLivePlayerNamesByColor(playerSlots)
   const base = {
@@ -334,15 +395,18 @@ export function sanitizeMatchForClient(match: LetterHiveLiveMatchRow, role: Lett
     firstBuzzedAt: match.first_buzzed_at,
     firstBuzzPlayerName: sanitizeTeamName(normalizedMetadata.firstBuzzPlayerName) || null,
     currentPrompt: match.current_prompt,
-    currentAnswer: role === "presenter" || match.show_answer ? match.current_answer : null,
+    currentAnswer: canControlLetterHiveLiveMatch(match.metadata, role) || match.show_answer ? match.current_answer : null,
     currentLetter: match.current_letter,
     currentCellIndex: match.current_cell_index,
+    currentPromptStartedAt,
     showAnswer: match.show_answer,
     teamAName: groupedPlayerNames.teamAName || match.team_a_name,
     teamBName: groupedPlayerNames.teamBName || match.team_b_name,
     teamAScore: match.team_a_score,
     teamBScore: match.team_b_score,
     playersPerTeam,
+    requiresPresenter,
+    controllerSide,
     roundTarget,
     buzzOwnerTimerSeconds,
     buzzOpponentTimerSeconds,

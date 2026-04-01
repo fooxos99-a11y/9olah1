@@ -28,6 +28,20 @@ function shuffleLetters(letters: string[]) {
   return shuffled;
 }
 
+function buildBoardLettersFromPool(pool: string[]) {
+  if (pool.length === 0) {
+    return shuffleLetters(BASE_LETTERS);
+  }
+
+  const boardLetters: string[] = [];
+
+  while (boardLetters.length < 25) {
+    boardLetters.push(...shuffleLetters(pool));
+  }
+
+  return boardLetters.slice(0, 25);
+}
+
 type LetterHiveQuestion = {
   id: string;
   letter: string;
@@ -56,6 +70,27 @@ function getNeighbors(i: number): number[] {
     if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) neighbors.push(nr * 5 + nc);
   });
   return neighbors;
+}
+
+function buildPlayableBoardLetters(
+  questionsByLetter: Record<string, LetterHiveQuestion[]>,
+  progressByLetter: Record<string, LetterHiveProgress>
+) {
+  const lettersWithQuestions = BASE_LETTERS.filter((letter) => (questionsByLetter[letter] || []).length > 0);
+  const lettersWithRemainingQuestions = BASE_LETTERS.filter((letter) => {
+    const questions = questionsByLetter[letter] || [];
+
+    if (questions.length === 0) {
+      return false;
+    }
+
+    const nextIndex = (progressByLetter[letter]?.lastQuestionIndex ?? -1) + 1;
+    return nextIndex < questions.length;
+  });
+
+  return buildBoardLettersFromPool(
+    lettersWithRemainingQuestions.length > 0 ? lettersWithRemainingQuestions : lettersWithQuestions
+  );
 }
 
 // مكون المحتوى الذي يستخدم useSearchParams
@@ -94,10 +129,6 @@ function GameContent() {
   const boardPanStartRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 });
 
   const accountFromQuery = searchParams?.get("account") || "";
-
-  useEffect(() => {
-    setRandomLetters(shuffleLetters(BASE_LETTERS));
-  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -147,7 +178,11 @@ function GameContent() {
       try {
         const supabase = createClient();
         const [{ data: questions, error: questionsError }, progressResult] = await Promise.all([
-          supabase.from("letter_hive_questions").select("id,letter,question,answer").order("id", { ascending: true }),
+          supabase
+            .from("letter_hive_live_questions")
+            .select("id,letter,question,answer")
+            .eq("is_active", true)
+            .order("id", { ascending: true }),
           accountNumber === null
             ? Promise.resolve({ data: [], error: null })
             : supabase
@@ -175,6 +210,16 @@ function GameContent() {
             return acc;
           }, {});
           setQuestionsByLetter(groupedQuestions);
+
+          const progressMap = (progressRows || []).reduce<Record<string, LetterHiveProgress>>((acc, row) => {
+            acc[row.letter] = {
+              id: row.id,
+              lastQuestionIndex: row.last_question_index,
+            };
+            return acc;
+          }, {});
+
+          setRandomLetters(buildPlayableBoardLetters(groupedQuestions, progressMap));
         }
 
         if (progressError) {
@@ -475,7 +520,7 @@ function GameContent() {
 
   const resetGame = () => {
     setHexes(Array(25).fill(null));
-    setRandomLetters(shuffleLetters(BASE_LETTERS));
+    setRandomLetters(buildPlayableBoardLetters(questionsByLetter, progressByLetter));
     setShowWinModal(false);
   };
 
