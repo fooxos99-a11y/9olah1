@@ -355,6 +355,10 @@ export default function LetterHiveLivePresenterPage() {
   const shouldShowFullPrompt = Boolean(match?.firstBuzzSide) && buzzTimerState.phase === null
   const frozenPromptDisplayText = frozenPromptText || latestVisiblePromptText || latestVisiblePromptTextRef.current
   const frozenPromptVisibleCount = useMemo(() => splitIntoGraphemes(frozenPromptDisplayText).length, [frozenPromptDisplayText])
+  const handleVisiblePromptTextChange = (value: string) => {
+    latestVisiblePromptTextRef.current = value
+    setLatestVisiblePromptText(value)
+  }
 
   useEffect(() => {
     setRoundTargetDraft(match?.roundTarget || DEFAULT_LETTER_HIVE_LIVE_ROUND_TARGET)
@@ -431,14 +435,6 @@ export default function LetterHiveLivePresenterPage() {
       }
     }
   }, [frozenPromptText, latestVisiblePromptText, match?.firstBuzzSide])
-
-  useEffect(() => {
-    if (!latestVisiblePromptText) {
-      return
-    }
-
-    latestVisiblePromptTextRef.current = latestVisiblePromptText
-  }, [latestVisiblePromptText])
 
   useEffect(() => {
     setLocalBuzzPause(false)
@@ -876,16 +872,15 @@ export default function LetterHiveLivePresenterPage() {
                       text={match.currentPrompt}
                       ready
                       initialVisibleCount={frozenPromptVisibleCount}
-                      onVisibleTextChange={setLatestVisiblePromptText}
+                      onVisibleTextChange={handleVisiblePromptTextChange}
                     />
-                  ) : match.firstBuzzSide ? (
-                    frozenPromptDisplayText
                   ) : (
                     <AnimatedQuestionText
+                      key={`live:${match.currentCellIndex ?? "none"}:${match.currentPrompt ?? ""}`}
                       text={match.currentPrompt}
                       ready={questionHasStarted}
                       paused={questionHasStarted && (localBuzzPause || Boolean(match.firstBuzzSide))}
-                      onVisibleTextChange={setLatestVisiblePromptText}
+                      onVisibleTextChange={handleVisiblePromptTextChange}
                     />
                   )}
                 </h3>

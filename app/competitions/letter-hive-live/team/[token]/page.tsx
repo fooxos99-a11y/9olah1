@@ -319,6 +319,10 @@ export default function LetterHiveLiveTeamPage() {
   const shouldShowFullPrompt = Boolean(match?.firstBuzzSide) && buzzTimerState.phase === null
   const frozenPromptDisplayText = frozenPromptText || latestVisiblePromptText || latestVisiblePromptTextRef.current
   const frozenPromptVisibleCount = useMemo(() => splitIntoGraphemes(frozenPromptDisplayText).length, [frozenPromptDisplayText])
+  const handleVisiblePromptTextChange = (value: string) => {
+    latestVisiblePromptTextRef.current = value
+    setLatestVisiblePromptText(value)
+  }
   const canManageCurrentQuestion = effectiveRole === "team_a" || effectiveRole === "team_b"
     ? !match?.requiresPresenter && match?.controllerSide === effectiveRole && isCaptain
     : false
@@ -345,14 +349,6 @@ export default function LetterHiveLiveTeamPage() {
       }
     }
   }, [frozenPromptText, latestVisiblePromptText, match?.firstBuzzSide])
-
-  useEffect(() => {
-    if (!latestVisiblePromptText) {
-      return
-    }
-
-    latestVisiblePromptTextRef.current = latestVisiblePromptText
-  }, [latestVisiblePromptText])
 
   useEffect(() => {
     setLocalBuzzPause(false)
@@ -713,16 +709,15 @@ export default function LetterHiveLiveTeamPage() {
                       text={match.currentPrompt}
                       ready
                       initialVisibleCount={frozenPromptVisibleCount}
-                      onVisibleTextChange={setLatestVisiblePromptText}
+                      onVisibleTextChange={handleVisiblePromptTextChange}
                     />
-                  ) : match.firstBuzzSide ? (
-                    frozenPromptDisplayText
                   ) : (
                     <AnimatedQuestionText
+                      key={`live:${match.currentCellIndex ?? "none"}:${match.currentPrompt ?? ""}`}
                       text={match.currentPrompt}
                       ready={questionHasStarted}
                       paused={questionHasStarted && (localBuzzPause || Boolean(match.firstBuzzSide))}
-                      onVisibleTextChange={setLatestVisiblePromptText}
+                      onVisibleTextChange={handleVisiblePromptTextChange}
                     />
                   )}
                 </h3>

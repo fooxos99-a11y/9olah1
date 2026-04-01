@@ -157,7 +157,7 @@ export function AnimatedQuestionText({ text, paused = false, ready = true, initi
   useEffect(() => {
     setVisibleCount(initialVisibleCount)
     setPauseLatched(paused)
-  }, [initialVisibleCount, paused, text])
+  }, [initialVisibleCount, text])
 
   useEffect(() => {
     if (paused) {

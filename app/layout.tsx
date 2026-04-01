@@ -11,7 +11,7 @@ const cairo = Cairo({ subsets: ["arabic"], variable: "--font-cairo" })
 
 export const metadata: Metadata = {
   title: "صولة وجولة",
-  description: "منصة ألعاب عربية تنافسية تجمع الألعاب والتحديات في مكان واحد",
+  description: "منصة ألعاب تنافسية تضم مجموعة من التحديات والمسابقات الممتعة بتجربة سريعة وواضحة تركّز على اللعب والحماس والتنوع.",
   generator: "v0.app",
 }
 
